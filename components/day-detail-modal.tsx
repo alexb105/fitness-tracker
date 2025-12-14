@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Plus, Dumbbell, ChevronRight, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -16,20 +16,8 @@ interface DayDetailModalProps {
   onSessionSelect: (session: WorkoutSession) => void
 }
 
-export default function DayDetailModal({
-  day,
-  open,
-  onOpenChange,
-  onUpdate,
-  onSessionSelect,
-}: DayDetailModalProps) {
+export default function DayDetailModal({ day, open, onOpenChange, onUpdate, onSessionSelect }: DayDetailModalProps) {
   const [showNewSession, setShowNewSession] = useState(false)
-
-  useEffect(() => {
-    if (open) {
-      setShowNewSession(false)
-    }
-  }, [open])
 
   if (!day) return null
 
@@ -46,6 +34,14 @@ export default function DayDetailModal({
     setShowNewSession(false)
   }
 
+  const loadTemplate = (session: WorkoutSession) => {
+    onUpdate({
+      ...day,
+      sessions: [...day.sessions, session],
+    })
+    setShowNewSession(false)
+  }
+
   const deleteSession = (id: string) => {
     onUpdate({
       ...day,
@@ -53,14 +49,10 @@ export default function DayDetailModal({
     })
   }
 
-  const handleSessionClick = (session: WorkoutSession) => {
-    onSessionSelect(session)
-  }
-
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {new Date(day.date).toLocaleDateString("en-US", {
@@ -71,10 +63,13 @@ export default function DayDetailModal({
               })}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Add workout sessions to this day</p>
 
-            <Button onClick={() => setShowNewSession(true)} variant="outline" className="w-full h-11">
+          <div className="space-y-4">
+            <Button
+              onClick={() => setShowNewSession(true)}
+              variant="outline"
+              className="w-full h-11"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Add Session
             </Button>
@@ -83,7 +78,9 @@ export default function DayDetailModal({
               <div className="text-center py-12">
                 <Dumbbell className="w-10 h-10 text-muted-foreground/50 mx-auto mb-3" />
                 <p className="text-muted-foreground">No sessions yet</p>
-                <p className="text-sm text-muted-foreground/70">Add a workout session like Push Day or Leg Day</p>
+                <p className="text-sm text-muted-foreground/70">
+                  Add a workout session like Push Day or Leg Day
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -91,7 +88,10 @@ export default function DayDetailModal({
                   <Card
                     key={session.id}
                     className="p-4 cursor-pointer hover:bg-accent/50 transition-colors group"
-                    onClick={() => handleSessionClick(session)}
+                    onClick={() => {
+                      onSessionSelect(session)
+                      onOpenChange(false)
+                    }}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
@@ -123,7 +123,13 @@ export default function DayDetailModal({
         </DialogContent>
       </Dialog>
 
-      <NewSessionDialog open={showNewSession} onOpenChange={setShowNewSession} onAdd={addSession} />
+      <NewSessionDialog
+        open={showNewSession}
+        onOpenChange={setShowNewSession}
+        onAdd={addSession}
+        onLoadTemplate={loadTemplate}
+      />
     </>
   )
 }
+

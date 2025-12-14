@@ -257,19 +257,23 @@ export default function Home() {
                   {totalWorkouts} total workout{totalWorkouts !== 1 ? "s" : ""} • {averagePerWeek} avg/week • Target: {targetSessions}/week
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  setTempTarget(targetSessions.toString())
-                  setShowTargetDialog(true)
-                }}
-              >
-                <Settings className="w-5 h-5" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-primary" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => {
+                    setTempTarget(targetSessions.toString())
+                    setShowTargetDialog(true)
+                  }}
+                >
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
             <ChartContainer config={chartConfig} className="h-[200px] w-full">
-              <BarChart data={frequencyData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={frequencyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis
                   dataKey="week"
