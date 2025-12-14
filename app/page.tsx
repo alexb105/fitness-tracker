@@ -27,6 +27,7 @@ export interface Exercise {
   name: string
   pbs: PersonalBest[]
   color?: string
+  type?: string
 }
 
 export interface WorkoutSession {
@@ -370,43 +371,44 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="max-w-lg mx-auto p-6">
-        <header className="mb-8">
+      <div className="max-w-lg mx-auto p-4 sm:p-6">
+        <header className="mb-6 sm:mb-8">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className="p-2 bg-primary/10 rounded-xl">
-                <Dumbbell className="w-6 h-6 text-primary" />
+                <Dumbbell className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
               </div>
-              <h1 className="text-2xl font-bold tracking-tight">Workout Tracker</h1>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Workout Tracker</h1>
             </div>
             <Button
               variant="ghost"
               size="icon"
+              className="h-10 w-10 sm:h-9 sm:w-9"
               onClick={() => setShowSettingsDialog(true)}
             >
               <Settings className="w-5 h-5" />
             </Button>
           </div>
-          <p className="text-muted-foreground">Track your daily workouts and PBs</p>
+          <p className="text-sm sm:text-base text-muted-foreground">Track your daily workouts and PBs</p>
         </header>
 
         {currentStreak > 0 && (
-          <Card className="p-4 mb-6 bg-primary/5 border-primary/20">
-            <div className="flex items-center justify-between">
+          <Card className="p-4 sm:p-5 mb-6 bg-primary/5 border-primary/20">
+            <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg">
                   <Flame className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Current Streak</p>
-                  <p className="text-2xl font-bold">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Current Streak</p>
+                  <p className="text-xl sm:text-2xl font-bold">
                     {currentStreak} week{currentStreak !== 1 ? "s" : ""}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-sm text-muted-foreground">Target: {targetSessions}/week</p>
-                <p className="text-sm text-muted-foreground">Best: {longestStreak} weeks</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Target: {targetSessions}/week</p>
+                <p className="text-xs sm:text-sm text-muted-foreground">Best: {longestStreak} weeks</p>
               </div>
             </div>
           </Card>
@@ -506,11 +508,11 @@ export default function Home() {
           </Card>
         )}
 
-        <Card className="p-4 mb-6">
-          <div className="flex items-center justify-between mb-4">
+        <Card className="p-4 sm:p-5 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
             <div>
-              <h2 className="font-semibold text-lg">Week View</h2>
-              <p className="text-sm text-muted-foreground">
+              <h2 className="font-semibold text-base sm:text-lg">Week View</h2>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                 {currentWeekStart.toLocaleDateString("en-US", {
                   month: "long",
                   day: "numeric",
@@ -529,6 +531,7 @@ export default function Home() {
               <Button
                 variant="outline"
                 size="sm"
+                className="h-9 px-3"
                 onClick={goToPreviousWeek}
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -536,6 +539,7 @@ export default function Home() {
               <Button
                 variant="outline"
                 size="sm"
+                className="h-9 px-3 text-sm"
                 onClick={goToCurrentWeek}
               >
                 Today
@@ -543,6 +547,7 @@ export default function Home() {
               <Button
                 variant="outline"
                 size="sm"
+                className="h-9 px-3"
                 onClick={goToNextWeek}
               >
                 <ChevronRight className="w-4 h-4" />
@@ -561,17 +566,17 @@ export default function Home() {
               return (
                 <Card
                   key={index}
-                  className={`p-4 cursor-pointer hover:bg-accent/50 transition-colors group ${
+                  className={`p-4 sm:p-5 cursor-pointer hover:bg-accent/50 active:bg-accent/70 transition-colors group ${
                     isToday ? "border-primary border-2" : ""
                   } ${isPast ? "opacity-75" : ""} ${
                     isFuture && hasSession ? "bg-primary/5 border-primary/20" : ""
                   }`}
                   onClick={() => handleDayClick(date)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <h3 className="font-semibold text-sm sm:text-base">
                           {date.toLocaleDateString("en-US", {
                             weekday: "long",
                             month: "short",
@@ -579,34 +584,34 @@ export default function Home() {
                           })}
                         </h3>
                         {isToday && (
-                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full whitespace-nowrap">
                             Today
                           </span>
                         )}
                         {isFuture && (
-                          <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">
+                          <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full whitespace-nowrap">
                             Future
                           </span>
                         )}
                       </div>
                       {day && day.sessions.length > 0 ? (
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
                           {day.sessions[0].name}
                           {" · "}
                           {getTotalExercises(day)} exercise{getTotalExercises(day) !== 1 ? "s" : ""}
                         </p>
                       ) : (
-                        <p className="text-sm text-muted-foreground/70">
+                        <p className="text-xs sm:text-sm text-muted-foreground/70">
                           No workouts planned
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {day && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="h-9 w-9 opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={(e) => {
                             e.stopPropagation()
                             deleteDay(day.id)
@@ -615,7 +620,7 @@ export default function Home() {
                           <Trash2 className="w-4 h-4 text-destructive" />
                         </Button>
                       )}
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                      <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
                     </div>
                   </div>
                 </Card>

@@ -4,6 +4,24 @@ export interface GlobalExercise {
   name: string
   createdAt: string
   color?: string
+  type?: string
+}
+
+export const MUSCLE_GROUP_TYPES = [
+  { name: "Chest", color: "#ef4444" }, // red
+  { name: "Back", color: "#3b82f6" }, // blue
+  { name: "Shoulders", color: "#8b5cf6" }, // purple
+  { name: "Biceps", color: "#22c55e" }, // green
+  { name: "Triceps", color: "#f97316" }, // orange
+  { name: "Legs", color: "#eab308" }, // yellow
+  { name: "Core", color: "#06b6d4" }, // cyan
+  { name: "Cardio", color: "#ec4899" }, // pink
+  { name: "Other", color: "#64748b" }, // slate
+] as const
+
+export function getMuscleGroupColor(type: string): string | undefined {
+  const group = MUSCLE_GROUP_TYPES.find((g) => g.name.toLowerCase() === type.toLowerCase())
+  return group?.color
 }
 
 const EXERCISES_STORAGE_KEY = "workout-exercises"
@@ -69,7 +87,20 @@ export function setExerciseColor(exerciseName: string, color: string | undefined
   localStorage.setItem(EXERCISES_STORAGE_KEY, JSON.stringify(exercises))
 }
 
-export function addExercise(name: string, color?: string) {
+export function getExerciseType(exerciseName: string): string | undefined {
+  if (typeof window === "undefined") return undefined
+  const stored = localStorage.getItem(EXERCISES_STORAGE_KEY)
+  if (stored) {
+    const exercises: GlobalExercise[] = JSON.parse(stored)
+    const exercise = exercises.find(
+      (e) => e.name.toLowerCase() === exerciseName.toLowerCase()
+    )
+    return exercise?.type
+  }
+  return undefined
+}
+
+export function addExercise(name: string, color?: string, type?: string) {
   if (typeof window === "undefined") return
   const stored = localStorage.getItem(EXERCISES_STORAGE_KEY)
   const exercises: GlobalExercise[] = stored ? JSON.parse(stored) : []
@@ -79,17 +110,24 @@ export function addExercise(name: string, color?: string) {
     (e) => e.name.toLowerCase() === name.toLowerCase()
   )
   
+  // If type is provided, get color from type if color not provided
+  const finalColor = color || (type ? getMuscleGroupColor(type) : undefined)
+  
   if (existingIndex >= 0) {
-    // Update existing exercise with color if provided
-    if (color) {
-      exercises[existingIndex].color = color
-      localStorage.setItem(EXERCISES_STORAGE_KEY, JSON.stringify(exercises))
+    // Update existing exercise with color and type if provided
+    if (finalColor) {
+      exercises[existingIndex].color = finalColor
     }
+    if (type) {
+      exercises[existingIndex].type = type
+    }
+    localStorage.setItem(EXERCISES_STORAGE_KEY, JSON.stringify(exercises))
   } else {
     exercises.push({
       name: name.trim(),
       createdAt: new Date().toISOString(),
-      color,
+      color: finalColor,
+      type,
     })
     localStorage.setItem(EXERCISES_STORAGE_KEY, JSON.stringify(exercises))
   }

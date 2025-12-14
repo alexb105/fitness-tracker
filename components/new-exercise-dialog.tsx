@@ -3,42 +3,26 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { Plus, Search, Palette } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getAllExercises, addExercise, getExerciseColor, setExerciseColor, getAllExercisesWithColors } from "@/lib/exercises"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { getAllExercises, addExercise, getExerciseColor, setExerciseColor, getAllExercisesWithColors, MUSCLE_GROUP_TYPES, getMuscleGroupColor } from "@/lib/exercises"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface NewExerciseDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdd: (name: string, color?: string) => void
+  onAdd: (name: string, color?: string, type?: string) => void
 }
-
-const PRESET_COLORS = [
-  "#ef4444", // red
-  "#f97316", // orange
-  "#eab308", // yellow
-  "#22c55e", // green
-  "#06b6d4", // cyan
-  "#3b82f6", // blue
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#64748b", // slate
-  "#84cc16", // lime
-  "#14b8a6", // teal
-  "#f59e0b", // amber
-]
 
 export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExerciseDialogProps) {
   const [name, setName] = useState("")
   const [existingExercises, setExistingExercises] = useState<string[]>([])
   const [exercisesWithColors, setExercisesWithColors] = useState<Array<{ name: string; color?: string }>>([])
   const [showCreateNew, setShowCreateNew] = useState(false)
-  const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined)
-  const [showColorPicker, setShowColorPicker] = useState(false)
+  const [selectedType, setSelectedType] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (open) {
@@ -46,10 +30,10 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
       setExercisesWithColors(getAllExercisesWithColors())
       setShowCreateNew(false)
       setName("")
-      setSelectedColor(undefined)
-      setShowColorPicker(false)
+      setSelectedType(undefined)
     }
   }, [open])
+
 
   const handleSelectExercise = (exerciseName: string) => {
     // Get color from library if it exists
@@ -59,17 +43,18 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
     onAdd(exerciseName, color)
     setName("")
     setShowCreateNew(false)
-    setSelectedColor(undefined)
+    setSelectedType(undefined)
     onOpenChange(false)
   }
 
   const handleCreateNew = () => {
     if (name.trim()) {
-      addExercise(name.trim(), selectedColor)
-      onAdd(name.trim(), selectedColor)
+      const color = selectedType ? getMuscleGroupColor(selectedType) : undefined
+      addExercise(name.trim(), color, selectedType)
+      onAdd(name.trim(), color, selectedType)
       setName("")
       setShowCreateNew(false)
-      setSelectedColor(undefined)
+      setSelectedType(undefined)
       onOpenChange(false)
     }
   }
@@ -93,7 +78,7 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Exercise</DialogTitle>
         </DialogHeader>
@@ -171,57 +156,38 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
           {showCreateNew && (
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label>Color (Optional)</Label>
-                <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full justify-start"
-                      onClick={() => setShowColorPicker(true)}
-                    >
-                      <Palette className="w-4 h-4 mr-2" />
-                      {selectedColor ? (
+                <Label>Type (Optional)</Label>
+                <Select value={selectedType} onValueChange={(value) => setSelectedType(value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select muscle group" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {MUSCLE_GROUP_TYPES.map((type) => (
+                      <SelectItem key={type.name} value={type.name}>
                         <div className="flex items-center gap-2">
                           <div
-                            className="w-4 h-4 rounded-full"
-                            style={{ backgroundColor: selectedColor }}
+                            className="w-3 h-3 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: type.color }}
                           />
-                          <span>Change Color</span>
+                          {type.name}
                         </div>
-                      ) : (
-                        "Choose Color"
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64">
-                    <div className="space-y-2">
-                      <div className="grid grid-cols-6 gap-2">
-                        {PRESET_COLORS.map((color) => (
-                          <button
-                            key={color}
-                            onClick={() => {
-                              setSelectedColor(color)
-                              setShowColorPicker(false)
-                            }}
-                            className="w-8 h-8 rounded-full border-2 border-transparent hover:border-foreground transition-colors"
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          setSelectedColor(undefined)
-                          setShowColorPicker(false)
-                        }}
-                      >
-                        Clear Color
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedType && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setSelectedType(undefined)}
+                  >
+                    Clear Type
+                  </Button>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Selecting a type will automatically set the color
+                </p>
               </div>
               <Button onClick={handleCreateNew} className="w-full" disabled={!name.trim()}>
                 <Plus className="w-4 h-4 mr-2" />

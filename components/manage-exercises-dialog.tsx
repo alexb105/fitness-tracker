@@ -1,17 +1,18 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Trash2, Palette, Search, Edit2, Check, X } from "lucide-react"
+import { Trash2, Tag, Search, Edit2, Check, X } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Card } from "@/components/ui/card"
 import {
   getAllExercisesWithColors,
-  setExerciseColor,
+  addExercise,
   renameExercise,
+  MUSCLE_GROUP_TYPES,
+  getMuscleGroupColor,
   type GlobalExercise,
 } from "@/lib/exercises"
 import type { WorkoutDay } from "@/app/page"
@@ -24,21 +25,6 @@ interface ManageExercisesDialogProps {
   onDaysUpdate?: (days: WorkoutDay[]) => void
 }
 
-const PRESET_COLORS = [
-  "#ef4444", // red
-  "#f97316", // orange
-  "#eab308", // yellow
-  "#22c55e", // green
-  "#06b6d4", // cyan
-  "#3b82f6", // blue
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#64748b", // slate
-  "#84cc16", // lime
-  "#14b8a6", // teal
-  "#f59e0b", // amber
-]
-
 export default function ManageExercisesDialog({
   open,
   onOpenChange,
@@ -47,7 +33,7 @@ export default function ManageExercisesDialog({
 }: ManageExercisesDialogProps) {
   const [exercises, setExercises] = useState<GlobalExercise[]>([])
   const [searchQuery, setSearchQuery] = useState("")
-  const [editingColorFor, setEditingColorFor] = useState<string | null>(null)
+  const [editingTypeFor, setEditingTypeFor] = useState<string | null>(null)
   const [editingNameFor, setEditingNameFor] = useState<string | null>(null)
   const [editingNameValue, setEditingNameValue] = useState("")
   const { toast } = useToast()
@@ -56,7 +42,7 @@ export default function ManageExercisesDialog({
     if (open) {
       loadExercises()
       setSearchQuery("")
-      setEditingColorFor(null)
+      setEditingTypeFor(null)
       setEditingNameFor(null)
       setEditingNameValue("")
     }
@@ -80,10 +66,15 @@ export default function ManageExercisesDialog({
     }
   }
 
-  const handleUpdateColor = (exerciseName: string, color: string | undefined) => {
-    setExerciseColor(exerciseName, color)
+  const handleUpdateType = (exerciseName: string, type: string | undefined) => {
+    const color = type ? getMuscleGroupColor(type) : undefined
+    addExercise(exerciseName, color, type)
     loadExercises()
-    setEditingColorFor(null)
+    setEditingTypeFor(null)
+    toast({
+      title: "Type updated",
+      description: type ? `Exercise type set to ${type}` : "Exercise type cleared",
+    })
   }
 
   const handleStartEditName = (exerciseName: string) => {
@@ -145,7 +136,7 @@ export default function ManageExercisesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Manage Exercises</DialogTitle>
         </DialogHeader>
@@ -182,7 +173,7 @@ export default function ManageExercisesDialog({
               </p>
               <div className="space-y-2 max-h-[400px] overflow-y-auto">
                 {filteredExercises.map((exercise) => (
-                  <Card key={exercise.name} className="p-3">
+                  <Card key={exercise.name} className="p-3 sm:p-4">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {exercise.color && (
@@ -203,13 +194,13 @@ export default function ManageExercisesDialog({
                                   handleCancelEditName()
                                 }
                               }}
-                              className="h-8 flex-1"
+                              className="h-9 sm:h-8 flex-1 text-sm"
                               autoFocus
                             />
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8"
+                              className="h-9 w-9 sm:h-8 sm:w-8"
                               onClick={() => handleSaveEditName(exercise.name)}
                             >
                               <Check className="w-4 h-4" />
@@ -217,14 +208,14 @@ export default function ManageExercisesDialog({
                             <Button
                               size="icon"
                               variant="ghost"
-                              className="h-8 w-8"
+                              className="h-9 w-9 sm:h-8 sm:w-8"
                               onClick={handleCancelEditName}
                             >
                               <X className="w-4 h-4" />
                             </Button>
                           </div>
                         ) : (
-                          <span className="font-medium truncate">{exercise.name}</span>
+                          <span className="font-medium truncate text-sm sm:text-base">{exercise.name}</span>
                         )}
                       </div>
                       {editingNameFor !== exercise.name && (
@@ -232,50 +223,23 @@ export default function ManageExercisesDialog({
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8"
+                            className="h-9 w-9 sm:h-8 sm:w-8"
                             onClick={() => handleStartEditName(exercise.name)}
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
-                        <Popover
-                          open={editingColorFor === exercise.name}
-                          onOpenChange={(open) =>
-                            setEditingColorFor(open ? exercise.name : null)
-                          }
+                        <Button 
+                          size="icon" 
+                          variant="ghost" 
+                          className="h-9 w-9 sm:h-8 sm:w-8"
+                          onClick={() => setEditingTypeFor(exercise.name)}
                         >
-                          <PopoverTrigger asChild>
-                            <Button size="icon" variant="ghost" className="h-8 w-8">
-                              <Palette className="w-4 h-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-64">
-                            <div className="space-y-2">
-                              <Label>Exercise Color</Label>
-                              <div className="grid grid-cols-6 gap-2">
-                                {PRESET_COLORS.map((color) => (
-                                  <button
-                                    key={color}
-                                    onClick={() => handleUpdateColor(exercise.name, color)}
-                                    className="w-8 h-8 rounded-full border-2 border-transparent hover:border-foreground transition-colors"
-                                    style={{ backgroundColor: color }}
-                                  />
-                                ))}
-                              </div>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="w-full"
-                                onClick={() => handleUpdateColor(exercise.name, undefined)}
-                              >
-                                Clear Color
-                              </Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
+                          <Tag className="w-4 h-4" />
+                        </Button>
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-8 w-8 text-destructive"
+                            className="h-9 w-9 sm:h-8 sm:w-8 text-destructive"
                             onClick={() => handleDeleteExercise(exercise.name)}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -290,6 +254,62 @@ export default function ManageExercisesDialog({
           )}
         </div>
       </DialogContent>
+
+      {/* Exercise Type Selection Modal */}
+      <Dialog open={editingTypeFor !== null} onOpenChange={(open) => !open && setEditingTypeFor(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>
+              Select Type for "{editingTypeFor ? exercises.find(e => e.name === editingTypeFor)?.name : ""}"
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto">
+              {MUSCLE_GROUP_TYPES.map((type) => {
+                const currentExercise = editingTypeFor ? exercises.find(e => e.name === editingTypeFor) : null
+                const isSelected = currentExercise?.type === type.name
+                return (
+                  <button
+                    key={type.name}
+                    onClick={() => {
+                      if (editingTypeFor) {
+                        handleUpdateType(editingTypeFor, type.name)
+                      }
+                    }}
+                    className={`w-full text-left px-4 py-3 rounded-md border-2 transition-colors flex items-center gap-3 ${
+                      isSelected
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:bg-accent"
+                    }`}
+                  >
+                    <div
+                      className="w-5 h-5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: type.color }}
+                    />
+                    <span className="font-medium text-base">{type.name}</span>
+                    {isSelected && (
+                      <Check className="w-5 h-5 ml-auto text-primary" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            {editingTypeFor && exercises.find(e => e.name === editingTypeFor)?.type && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  if (editingTypeFor) {
+                    handleUpdateType(editingTypeFor, undefined)
+                  }
+                }}
+              >
+                Clear Type
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

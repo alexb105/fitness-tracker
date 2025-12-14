@@ -1,33 +1,16 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ArrowLeft, Plus, Trophy, Trash2, TrendingUp, BarChart3, Bookmark, BookmarkCheck, Palette } from "lucide-react"
+import { ArrowLeft, Plus, Trophy, Trash2, TrendingUp, BarChart3, Bookmark, BookmarkCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { WorkoutSession, Exercise, WorkoutDay } from "@/app/page"
 import NewExerciseDialog from "./new-exercise-dialog"
 import NewPBDialog from "./new-pb-dialog"
 import ExerciseStats from "./exercise-stats"
-import { getBestPBForExercise, getExerciseColor, setExerciseColor } from "@/lib/exercises"
+import { getBestPBForExercise, getExerciseColor, addExercise as addExerciseToLibrary, getExerciseType } from "@/lib/exercises"
 import { saveTemplate, templateExists, unsaveTemplate } from "@/lib/session-templates"
 import { useToast } from "@/hooks/use-toast"
-
-const PRESET_COLORS = [
-  "#ef4444", // red
-  "#f97316", // orange
-  "#eab308", // yellow
-  "#22c55e", // green
-  "#06b6d4", // cyan
-  "#3b82f6", // blue
-  "#8b5cf6", // purple
-  "#ec4899", // pink
-  "#64748b", // slate
-  "#84cc16", // lime
-  "#14b8a6", // teal
-  "#f59e0b", // amber
-]
 
 interface SessionDetailProps {
   session: WorkoutSession
@@ -41,45 +24,57 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [viewingExerciseStats, setViewingExerciseStats] = useState<string | null>(null)
   const [isTemplateSaved, setIsTemplateSaved] = useState(false)
-  const [editingColorFor, setEditingColorFor] = useState<string | null>(null)
   const { toast } = useToast()
 
   useEffect(() => {
     setIsTemplateSaved(templateExists(session.name))
   }, [session.name])
 
-  // Sync exercise colors from library when session changes
+  // Sync exercise colors and types from library when session changes
   useEffect(() => {
     const updatedExercises = session.exercises.map((exercise) => {
       const libraryColor = getExerciseColor(exercise.name)
-      if (libraryColor && exercise.color !== libraryColor) {
-        return { ...exercise, color: libraryColor }
+      const libraryType = getExerciseType(exercise.name)
+      const colorChanged = libraryColor && exercise.color !== libraryColor
+      const typeChanged = libraryType && exercise.type !== libraryType
+      
+      if (colorChanged || typeChanged) {
+        return { 
+          ...exercise, 
+          color: libraryColor || exercise.color,
+          type: libraryType || exercise.type
+        }
       }
       return exercise
     })
     
-    // Only update if colors changed
-    const colorsChanged = updatedExercises.some((ex, index) => ex.color !== session.exercises[index]?.color)
-    if (colorsChanged) {
+    // Only update if colors or types changed
+    const changed = updatedExercises.some((ex, index) => 
+      ex.color !== session.exercises[index]?.color || 
+      ex.type !== session.exercises[index]?.type
+    )
+    if (changed) {
       onUpdate({ ...session, exercises: updatedExercises })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session.id])
 
-  const addExercise = (name: string, color?: string) => {
-    // Get color from library if not provided
+  const addExercise = (name: string, color?: string, type?: string) => {
+    // Get color and type from library if not provided
     const exerciseColor = color || getExerciseColor(name)
+    const exerciseType = type || getExerciseType(name)
     
     const newExercise: Exercise = {
       id: crypto.randomUUID(),
       name,
       pbs: [],
       color: exerciseColor,
+      type: exerciseType,
     }
     
-    // Save color to library
-    if (exerciseColor) {
-      setExerciseColor(name, exerciseColor)
+    // Save color and type to library
+    if (exerciseColor || exerciseType) {
+      addExerciseToLibrary(name, exerciseColor, exerciseType)
     }
     
     onUpdate({
@@ -87,24 +82,6 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
       exercises: [...session.exercises, newExercise],
     })
     setShowNewExercise(false)
-  }
-
-  const updateExerciseColor = (exerciseId: string, color: string | undefined) => {
-    const updatedExercises = session.exercises.map((e) => {
-      if (e.id === exerciseId) {
-        const updated = { ...e, color }
-        // Save to library
-        setExerciseColor(e.name, color)
-        return updated
-      }
-      return e
-    })
-    onUpdate({ ...session, exercises: updatedExercises })
-    setEditingColorFor(null)
-    toast({
-      title: "Color updated",
-      description: "Exercise color has been saved",
-    })
   }
 
   const deleteExercise = (id: string) => {
@@ -174,21 +151,22 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="max-w-lg mx-auto p-6">
+      <div className="max-w-lg mx-auto p-4 sm:p-6">
         <header className="mb-6">
-          <Button variant="ghost" className="mb-4 -ml-2" onClick={onBack}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
+          <Button variant="ghost" className="mb-4 -ml-2 h-10 px-3" onClick={onBack}>
+            <ArrowLeft className="w-5 h-5 mr-2" />
             Back
           </Button>
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">{session.name}</h1>
-              <p className="text-muted-foreground">Add exercises and track your PBs</p>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{session.name}</h1>
+              <p className="text-sm sm:text-base text-muted-foreground mt-1">Add exercises and track your PBs</p>
             </div>
             {session.exercises.length > 0 && (
               <Button
                 variant={isTemplateSaved ? "default" : "outline"}
                 size="sm"
+                className="h-10 px-4 text-sm"
                 onClick={() => {
                   if (isTemplateSaved) {
                     // Unsave template
@@ -214,7 +192,6 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
                     }
                   }
                 }}
-                className="ml-4"
               >
                 {isTemplateSaved ? (
                   <>
@@ -232,8 +209,8 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
           </div>
         </header>
 
-        <Button onClick={() => setShowNewExercise(true)} variant="outline" className="w-full mb-6 h-11">
-          <Plus className="w-4 h-4 mr-2" />
+        <Button onClick={() => setShowNewExercise(true)} variant="outline" className="w-full mb-6 h-12 text-base font-medium">
+          <Plus className="w-5 h-5 mr-2" />
           Add Exercise
         </Button>
 
@@ -253,88 +230,47 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
               return (
                 <Card 
                   key={exercise.id} 
-                  className="p-4"
+                  className="p-4 sm:p-5"
                   style={exerciseColor ? {
                     borderLeftWidth: '4px',
                     borderLeftColor: exerciseColor
                   } : {}}
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-lg">{exercise.name}</h3>
-                        {exerciseColor && (
-                          <div
-                            className="w-4 h-4 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: exerciseColor }}
-                          />
-                        )}
-                      </div>
-                      <div className="flex flex-col gap-1 mt-1">
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="font-semibold text-base sm:text-lg mb-3">{exercise.name}</h3>
+                      <div className="space-y-2">
                         {sessionBestPB && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <span>
-                              This Session: {sessionBestPB.reps} reps × {sessionBestPB.weight}kg
-                            </span>
+                          <div className="text-sm text-muted-foreground">
+                            <span className="font-medium">This Session:</span> {sessionBestPB.reps} reps × {sessionBestPB.weight}kg
                           </div>
                         )}
                         {allTimeBestPB && 
                           (!sessionBestPB || 
                            allTimeBestPB.reps !== sessionBestPB.reps || 
                            allTimeBestPB.weight !== sessionBestPB.weight) && (
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <TrendingUp className="w-3.5 h-3.5" />
+                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                            <TrendingUp className="w-4 h-4 flex-shrink-0" />
                             <span>
-                              All-Time Best: {allTimeBestPB.reps} reps × {allTimeBestPB.weight}kg
+                              <span className="font-medium">All-Time Best:</span> {allTimeBestPB.reps} reps × {allTimeBestPB.weight}kg
                             </span>
                           </div>
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1">
-                      <Popover open={editingColorFor === exercise.id} onOpenChange={(open) => setEditingColorFor(open ? exercise.id : null)}>
-                        <PopoverTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-8 w-8">
-                            <Palette className="w-4 h-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64">
-                          <div className="space-y-2">
-                            <Label>Exercise Color</Label>
-                            <div className="grid grid-cols-6 gap-2">
-                              {PRESET_COLORS.map((color) => (
-                                <button
-                                  key={color}
-                                  onClick={() => updateExerciseColor(exercise.id, color)}
-                                  className="w-8 h-8 rounded-full border-2 border-transparent hover:border-foreground transition-colors"
-                                  style={{ backgroundColor: color }}
-                                />
-                              ))}
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="w-full"
-                              onClick={() => updateExerciseColor(exercise.id, undefined)}
-                            >
-                              Clear Color
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                    <div className="flex gap-2 pt-2 border-t">
                       <Button 
                         size="sm" 
                         onClick={() => setSelectedExercise(exercise)}
                         variant={exercise.pbs.length > 0 ? "outline" : "default"}
+                        className="flex-1 h-10 text-sm"
                       >
                         {exercise.pbs.length > 0 ? (
-                          <>
-                            Edit
-                          </>
+                          "Edit PB"
                         ) : (
                           <>
-                            <Plus className="w-4 h-4 mr-1" />
-                            PB
+                            <Plus className="w-4 h-4 mr-1.5" />
+                            Add PB
                           </>
                         )}
                       </Button>
@@ -342,16 +278,21 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
                         size="sm"
                         variant="outline"
                         onClick={() => setViewingExerciseStats(exercise.name)}
+                        className="flex-1 h-10 text-sm"
                       >
-                        <BarChart3 className="w-4 h-4 mr-1" />
+                        <BarChart3 className="w-4 h-4 mr-1.5" />
                         Stats
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => deleteExercise(exercise.id)}>
-                        <Trash2 className="w-4 h-4 text-destructive" />
+                      <Button 
+                        size="icon" 
+                        variant="ghost" 
+                        onClick={() => deleteExercise(exercise.id)} 
+                        className="h-10 w-10 flex-shrink-0"
+                      >
+                        <Trash2 className="w-5 h-5 text-destructive" />
                       </Button>
                     </div>
                   </div>
-
                 </Card>
               )
             })}

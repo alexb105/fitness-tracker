@@ -59,14 +59,14 @@ export default function ExerciseStats({ exerciseName, allDays, onBack }: Exercis
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="max-w-lg mx-auto p-6">
+      <div className="max-w-lg mx-auto p-4 sm:p-6">
         <header className="mb-6">
-          <Button variant="ghost" className="mb-4 -ml-2" onClick={onBack}>
-            <ArrowLeft className="w-4 h-4 mr-2" />
+          <Button variant="ghost" className="mb-4 -ml-2 h-10 px-3" onClick={onBack}>
+            <ArrowLeft className="w-5 h-5 mr-2" />
             Back
           </Button>
-          <h1 className="text-2xl font-bold tracking-tight">{exerciseName}</h1>
-          <p className="text-muted-foreground">All-time exercise statistics</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">{exerciseName}</h1>
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">All-time exercise statistics</p>
         </header>
 
         {chartData.length > 0 && (
