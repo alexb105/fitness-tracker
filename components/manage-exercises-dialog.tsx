@@ -71,10 +71,6 @@ export default function ManageExercisesDialog({
     addExercise(exerciseName, color, type)
     loadExercises()
     setEditingTypeFor(null)
-    toast({
-      title: "Type updated",
-      description: type ? `Exercise type set to ${type}` : "Exercise type cleared",
-    })
   }
 
   const handleStartEditName = (exerciseName: string) => {
@@ -136,11 +132,11 @@ export default function ManageExercisesDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Manage Exercises</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-x-hidden">
           <div className="space-y-2">
             <Label htmlFor="search-exercises">Search Exercises</Label>
             <div className="relative">
@@ -171,10 +167,10 @@ export default function ManageExercisesDialog({
               <p className="text-sm text-muted-foreground">
                 {filteredExercises.length} exercise{filteredExercises.length !== 1 ? "s" : ""}
               </p>
-              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+              <div className="space-y-2 max-h-[400px] overflow-y-auto overflow-x-hidden">
                 {filteredExercises.map((exercise) => (
-                  <Card key={exercise.name} className="p-3 sm:p-4">
-                    <div className="flex items-center justify-between gap-2">
+                  <Card key={exercise.name} className="p-3 sm:p-4 overflow-x-hidden">
+                    <div className="flex items-center justify-between gap-2 overflow-x-hidden">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         {exercise.color && (
                           <div
@@ -259,9 +255,7 @@ export default function ManageExercisesDialog({
       <Dialog open={editingTypeFor !== null} onOpenChange={(open) => !open && setEditingTypeFor(null)}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>
-            <DialogTitle>
-              Select Type for "{editingTypeFor ? exercises.find(e => e.name === editingTypeFor)?.name : ""}"
-            </DialogTitle>
+            <DialogTitle>Select Type</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto">

@@ -508,51 +508,23 @@ export default function Home() {
           </Card>
         )}
 
-        <Card className="p-4 sm:p-5 mb-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-3">
-            <div>
-              <h2 className="font-semibold text-base sm:text-lg">Week View</h2>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                {currentWeekStart.toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                })}{" "}
-                -{" "}
-                {new Date(
-                  currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000
-                ).toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 px-3"
-                onClick={goToPreviousWeek}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 px-3 text-sm"
-                onClick={goToCurrentWeek}
-              >
-                Today
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 px-3"
-                onClick={goToNextWeek}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+        <Card className="p-5 sm:p-6 mb-6 border-2">
+          <div className="mb-5 pb-4 border-b">
+            <h2 className="font-bold text-xl sm:text-2xl mb-2">Week View</h2>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              {currentWeekStart.toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+              })}{" "}
+              -{" "}
+              {new Date(
+                currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000
+              ).toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </p>
           </div>
           <div className="space-y-2">
             {getWeekDays(currentWeekStart).map((date, index) => {
@@ -626,6 +598,32 @@ export default function Home() {
                 </Card>
               )
             })}
+          </div>
+          <div className="flex items-center justify-center gap-2 pt-4 mt-4 border-t">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={goToPreviousWeek}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              className="h-10 px-6 font-semibold rounded-full"
+              onClick={goToCurrentWeek}
+            >
+              Today
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={goToNextWeek}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </Button>
           </div>
         </Card>
 

@@ -4,12 +4,13 @@
  * 
  * - days: All workout days with complete nested data:
  *   - Sessions (with names)
- *   - Exercises (with names, colors, and IDs)
+ *   - Exercises (with names, colors, types, and IDs)
  *   - Personal Bests (reps, weight, dates)
  * 
  * - exercises: Global exercise library:
  *   - Exercise names
  *   - Exercise colors
+ *   - Exercise types (muscle groups)
  *   - Creation dates
  * 
  * - templates: Saved session templates:
@@ -23,7 +24,7 @@ export interface ExportedData {
   version: string
   exportDate: string
   days: unknown // WorkoutDay[] - includes sessions, exercises, and PBs
-  exercises: unknown // GlobalExercise[] - includes names and colors
+  exercises: unknown // GlobalExercise[] - includes names, colors, and types
   templates: unknown // SessionTemplate[] - includes session templates
   target: number // Weekly workout target
 }
@@ -58,7 +59,7 @@ export function exportAllData(): ExportedData | null {
       }
     }
 
-    // Export exercises (includes names and colors)
+    // Export exercises (includes names, colors, and types)
     const exercisesData = localStorage.getItem(STORAGE_KEYS.exercises)
     if (exercisesData) {
       const parsed = JSON.parse(exercisesData)

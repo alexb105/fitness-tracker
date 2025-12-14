@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { getAllExercises, addExercise, getExerciseColor, setExerciseColor, getAllExercisesWithColors, MUSCLE_GROUP_TYPES, getMuscleGroupColor } from "@/lib/exercises"
+import { getAllExercises, addExercise, getExerciseColor, setExerciseColor, getAllExercisesWithColors, MUSCLE_GROUP_TYPES, getMuscleGroupColor, getExerciseType } from "@/lib/exercises"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface NewExerciseDialogProps {
@@ -20,9 +20,10 @@ interface NewExerciseDialogProps {
 export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExerciseDialogProps) {
   const [name, setName] = useState("")
   const [existingExercises, setExistingExercises] = useState<string[]>([])
-  const [exercisesWithColors, setExercisesWithColors] = useState<Array<{ name: string; color?: string }>>([])
+  const [exercisesWithColors, setExercisesWithColors] = useState<Array<{ name: string; color?: string; type?: string }>>([])
   const [showCreateNew, setShowCreateNew] = useState(false)
   const [selectedType, setSelectedType] = useState<string | undefined>(undefined)
+  const [filterType, setFilterType] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     if (open) {
@@ -31,19 +32,22 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
       setShowCreateNew(false)
       setName("")
       setSelectedType(undefined)
+      setFilterType(undefined)
     }
   }, [open])
 
 
   const handleSelectExercise = (exerciseName: string) => {
-    // Get color from library if it exists
+    // Get color and type from library if they exist
     const color = getExerciseColor(exerciseName)
+    const type = getExerciseType(exerciseName)
     // Ensure exercise is in library (for backwards compatibility)
-    addExercise(exerciseName, color)
-    onAdd(exerciseName, color)
+    addExercise(exerciseName, color, type)
+    onAdd(exerciseName, color, type)
     setName("")
     setShowCreateNew(false)
     setSelectedType(undefined)
+    setFilterType(undefined)
     onOpenChange(false)
   }
 
@@ -68,13 +72,13 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
     setShowCreateNew(value.trim().length > 0 && !matches)
   }
 
-  const filteredExercises = existingExercises.filter((ex) =>
-    ex.toLowerCase().includes(name.toLowerCase())
-  )
+  const filteredExercisesWithColors = exercisesWithColors.filter((ex) => {
+    const matchesSearch = ex.name.toLowerCase().includes(name.toLowerCase())
+    const matchesType = !filterType || ex.type === filterType
+    return matchesSearch && matchesType
+  })
 
-  const filteredExercisesWithColors = exercisesWithColors.filter((ex) =>
-    ex.name.toLowerCase().includes(name.toLowerCase())
-  )
+  const filteredExercises = filteredExercisesWithColors.map(ex => ex.name)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -98,44 +102,38 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
             </div>
           </div>
 
-          {name.trim() && (filteredExercises.length > 0 || !showCreateNew) && (
-            <div className="border rounded-md max-h-[200px] overflow-y-auto p-2">
-              {filteredExercises.length > 0 && (
-                <div className="mb-2">
-                  <p className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-                    Existing Exercises
-                  </p>
-                  {filteredExercisesWithColors.map((exercise) => (
-                    <button
-                      key={exercise.name}
-                      onClick={() => handleSelectExercise(exercise.name)}
-                      className="w-full text-left px-2 py-1.5 rounded-sm hover:bg-accent cursor-pointer text-sm flex items-center gap-2"
-                    >
-                      {exercise.color && (
-                        <div
-                          className="w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: exercise.color }}
-                        />
-                      )}
-                      {exercise.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {filteredExercises.length === 0 && !showCreateNew && (
-                <div className="px-2 py-6 text-center text-sm text-muted-foreground">
-                  No exercises found
-                </div>
-              )}
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Filter by Type</Label>
+            <Select 
+              value={filterType || "all"} 
+              onValueChange={(value) => setFilterType(value === "all" ? undefined : value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {MUSCLE_GROUP_TYPES.map((type) => (
+                  <SelectItem key={type.name} value={type.name}>
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: type.color }}
+                      />
+                      {type.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          {!name.trim() && existingExercises.length > 0 && (
-            <div className="border rounded-md max-h-[200px] overflow-y-auto p-2">
+          {filteredExercisesWithColors.length > 0 && (
+            <div className="border rounded-md max-h-[300px] overflow-y-auto p-2">
               <p className="text-xs font-medium text-muted-foreground px-2 py-1.5">
-                Recent Exercises
+                {name.trim() ? "Matching Exercises" : "All Exercises"} ({filteredExercisesWithColors.length})
               </p>
-              {exercisesWithColors.slice(0, 10).map((exercise) => (
+              {filteredExercisesWithColors.map((exercise) => (
                 <button
                   key={exercise.name}
                   onClick={() => handleSelectExercise(exercise.name)}
@@ -147,9 +145,22 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
                       style={{ backgroundColor: exercise.color }}
                     />
                   )}
-                  {exercise.name}
+                  <span className="flex-1">{exercise.name}</span>
+                  {exercise.type && (
+                    <span className="text-xs text-muted-foreground">{exercise.type}</span>
+                  )}
                 </button>
               ))}
+            </div>
+          )}
+
+          {filteredExercisesWithColors.length === 0 && !showCreateNew && (
+            <div className="border rounded-md p-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                {name.trim() || filterType 
+                  ? "No exercises found matching your criteria" 
+                  : "No exercises saved yet"}
+              </p>
             </div>
           )}
 
