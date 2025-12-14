@@ -1,16 +1,33 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ArrowLeft, Plus, Trophy, Trash2, TrendingUp, BarChart3, Bookmark, BookmarkCheck } from "lucide-react"
+import { ArrowLeft, Plus, Trophy, Trash2, TrendingUp, BarChart3, Bookmark, BookmarkCheck, Palette } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { WorkoutSession, Exercise, WorkoutDay } from "@/app/page"
 import NewExerciseDialog from "./new-exercise-dialog"
 import NewPBDialog from "./new-pb-dialog"
 import ExerciseStats from "./exercise-stats"
-import { getBestPBForExercise } from "@/lib/exercises"
+import { getBestPBForExercise, getExerciseColor, setExerciseColor } from "@/lib/exercises"
 import { saveTemplate, templateExists, unsaveTemplate } from "@/lib/session-templates"
 import { useToast } from "@/hooks/use-toast"
+
+const PRESET_COLORS = [
+  "#ef4444", // red
+  "#f97316", // orange
+  "#eab308", // yellow
+  "#22c55e", // green
+  "#06b6d4", // cyan
+  "#3b82f6", // blue
+  "#8b5cf6", // purple
+  "#ec4899", // pink
+  "#64748b", // slate
+  "#84cc16", // lime
+  "#14b8a6", // teal
+  "#f59e0b", // amber
+]
 
 interface SessionDetailProps {
   session: WorkoutSession
@@ -24,23 +41,70 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
   const [viewingExerciseStats, setViewingExerciseStats] = useState<string | null>(null)
   const [isTemplateSaved, setIsTemplateSaved] = useState(false)
+  const [editingColorFor, setEditingColorFor] = useState<string | null>(null)
   const { toast } = useToast()
 
   useEffect(() => {
     setIsTemplateSaved(templateExists(session.name))
   }, [session.name])
 
-  const addExercise = (name: string) => {
+  // Sync exercise colors from library when session changes
+  useEffect(() => {
+    const updatedExercises = session.exercises.map((exercise) => {
+      const libraryColor = getExerciseColor(exercise.name)
+      if (libraryColor && exercise.color !== libraryColor) {
+        return { ...exercise, color: libraryColor }
+      }
+      return exercise
+    })
+    
+    // Only update if colors changed
+    const colorsChanged = updatedExercises.some((ex, index) => ex.color !== session.exercises[index]?.color)
+    if (colorsChanged) {
+      onUpdate({ ...session, exercises: updatedExercises })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.id])
+
+  const addExercise = (name: string, color?: string) => {
+    // Get color from library if not provided
+    const exerciseColor = color || getExerciseColor(name)
+    
     const newExercise: Exercise = {
       id: crypto.randomUUID(),
       name,
       pbs: [],
+      color: exerciseColor,
     }
+    
+    // Save color to library
+    if (exerciseColor) {
+      setExerciseColor(name, exerciseColor)
+    }
+    
     onUpdate({
       ...session,
       exercises: [...session.exercises, newExercise],
     })
     setShowNewExercise(false)
+  }
+
+  const updateExerciseColor = (exerciseId: string, color: string | undefined) => {
+    const updatedExercises = session.exercises.map((e) => {
+      if (e.id === exerciseId) {
+        const updated = { ...e, color }
+        // Save to library
+        setExerciseColor(e.name, color)
+        return updated
+      }
+      return e
+    })
+    onUpdate({ ...session, exercises: updatedExercises })
+    setEditingColorFor(null)
+    toast({
+      title: "Color updated",
+      description: "Exercise color has been saved",
+    })
   }
 
   const deleteExercise = (id: string) => {
@@ -183,12 +247,29 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
             {session.exercises.map((exercise) => {
               const sessionBestPB = getBestPB(exercise)
               const allTimeBestPB = getAllTimeBestPB(exercise.name)
+              // Get color from exercise or library
+              const exerciseColor = exercise.color || getExerciseColor(exercise.name)
 
               return (
-                <Card key={exercise.id} className="p-4">
+                <Card 
+                  key={exercise.id} 
+                  className="p-4"
+                  style={exerciseColor ? {
+                    borderLeftWidth: '4px',
+                    borderLeftColor: exerciseColor
+                  } : {}}
+                >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <h3 className="font-semibold text-lg">{exercise.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg">{exercise.name}</h3>
+                        {exerciseColor && (
+                          <div
+                            className="w-4 h-4 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: exerciseColor }}
+                          />
+                        )}
+                      </div>
                       <div className="flex flex-col gap-1 mt-1">
                         {sessionBestPB && (
                           <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -211,6 +292,36 @@ export default function SessionDetail({ session, onBack, onUpdate, allDays = [] 
                       </div>
                     </div>
                     <div className="flex gap-1">
+                      <Popover open={editingColorFor === exercise.id} onOpenChange={(open) => setEditingColorFor(open ? exercise.id : null)}>
+                        <PopoverTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-8 w-8">
+                            <Palette className="w-4 h-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64">
+                          <div className="space-y-2">
+                            <Label>Exercise Color</Label>
+                            <div className="grid grid-cols-6 gap-2">
+                              {PRESET_COLORS.map((color) => (
+                                <button
+                                  key={color}
+                                  onClick={() => updateExerciseColor(exercise.id, color)}
+                                  className="w-8 h-8 rounded-full border-2 border-transparent hover:border-foreground transition-colors"
+                                  style={{ backgroundColor: color }}
+                                />
+                              ))}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => updateExerciseColor(exercise.id, undefined)}
+                            >
+                              Clear Color
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                       <Button 
                         size="sm" 
                         onClick={() => setSelectedExercise(exercise)}

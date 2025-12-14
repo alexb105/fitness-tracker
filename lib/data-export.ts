@@ -1,0 +1,173 @@
+export interface ExportedData {
+  version: string
+  exportDate: string
+  days: unknown
+  exercises: unknown
+  templates: unknown
+  target: number
+}
+
+const STORAGE_KEYS = {
+  days: "workout-days",
+  exercises: "workout-exercises",
+  templates: "workout-session-templates",
+  target: "workout-target-sessions-per-week",
+}
+
+export function exportAllData(): ExportedData | null {
+  if (typeof window === "undefined") return null
+
+  const data: ExportedData = {
+    version: "1.0",
+    exportDate: new Date().toISOString(),
+    days: null,
+    exercises: null,
+    templates: null,
+    target: 3,
+  }
+
+  // Export days
+  const daysData = localStorage.getItem(STORAGE_KEYS.days)
+  if (daysData) {
+    data.days = JSON.parse(daysData)
+  }
+
+  // Export exercises
+  const exercisesData = localStorage.getItem(STORAGE_KEYS.exercises)
+  if (exercisesData) {
+    data.exercises = JSON.parse(exercisesData)
+  }
+
+  // Export templates
+  const templatesData = localStorage.getItem(STORAGE_KEYS.templates)
+  if (templatesData) {
+    data.templates = JSON.parse(templatesData)
+  }
+
+  // Export target
+  const targetData = localStorage.getItem(STORAGE_KEYS.target)
+  if (targetData) {
+    data.target = parseInt(targetData, 10) || 3
+  }
+
+  return data
+}
+
+export function downloadData(data: ExportedData): void {
+  if (typeof window === "undefined") return
+
+  const jsonString = JSON.stringify(data, null, 2)
+  const blob = new Blob([jsonString], { type: "application/json" })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = `workout-tracker-backup-${new Date().toISOString().split("T")[0]}.json`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+export function importAllData(
+  data: ExportedData,
+  options: { replace: boolean } = { replace: false }
+): { success: boolean; message: string } {
+  if (typeof window === "undefined") {
+    return { success: false, message: "Cannot import in server environment" }
+  }
+
+  try {
+    // Validate data structure
+    if (!data || typeof data !== "object") {
+      return { success: false, message: "Invalid data format" }
+    }
+
+    if (options.replace) {
+      // Replace all data
+      if (data.days) {
+        localStorage.setItem(STORAGE_KEYS.days, JSON.stringify(data.days))
+      }
+      if (data.exercises) {
+        localStorage.setItem(STORAGE_KEYS.exercises, JSON.stringify(data.exercises))
+      }
+      if (data.templates) {
+        localStorage.setItem(STORAGE_KEYS.templates, JSON.stringify(data.templates))
+      }
+      if (data.target !== undefined) {
+        localStorage.setItem(STORAGE_KEYS.target, data.target.toString())
+      }
+    } else {
+      // Merge data (append new items, keep existing)
+      if (data.days && Array.isArray(data.days)) {
+        const existingDays = localStorage.getItem(STORAGE_KEYS.days)
+        const existing = existingDays ? JSON.parse(existingDays) : []
+        const merged = [...data.days, ...existing]
+        // Remove duplicates by id
+        const unique = merged.filter(
+          (day: { id: string }, index: number, self: { id: string }[]) =>
+            index === self.findIndex((d) => d.id === day.id)
+        )
+        localStorage.setItem(STORAGE_KEYS.days, JSON.stringify(unique))
+      }
+
+      if (data.exercises && Array.isArray(data.exercises)) {
+        const existingExercises = localStorage.getItem(STORAGE_KEYS.exercises)
+        const existing = existingExercises ? JSON.parse(existingExercises) : []
+        const merged = [...data.exercises, ...existing]
+        // Remove duplicates by name (case-insensitive)
+        const unique = merged.filter(
+          (ex: { name: string }, index: number, self: { name: string }[]) =>
+            index ===
+            self.findIndex(
+              (e) => e.name.toLowerCase() === ex.name.toLowerCase()
+            )
+        )
+        localStorage.setItem(STORAGE_KEYS.exercises, JSON.stringify(unique))
+      }
+
+      if (data.templates && Array.isArray(data.templates)) {
+        const existingTemplates = localStorage.getItem(STORAGE_KEYS.templates)
+        const existing = existingTemplates ? JSON.parse(existingTemplates) : []
+        const merged = [...data.templates, ...existing]
+        // Remove duplicates by name (case-insensitive)
+        const unique = merged.filter(
+          (t: { name: string }, index: number, self: { name: string }[]) =>
+            index ===
+            self.findIndex(
+              (template) => template.name.toLowerCase() === t.name.toLowerCase()
+            )
+        )
+        localStorage.setItem(STORAGE_KEYS.templates, JSON.stringify(unique))
+      }
+
+      if (data.target !== undefined) {
+        localStorage.setItem(STORAGE_KEYS.target, data.target.toString())
+      }
+    }
+
+    return { success: true, message: "Data imported successfully" }
+  } catch (error) {
+    return {
+      success: false,
+      message: `Import failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+    }
+  }
+}
+
+export function readFileAsJSON(file: File): Promise<ExportedData> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string
+        const data = JSON.parse(content) as ExportedData
+        resolve(data)
+      } catch (error) {
+        reject(new Error("Invalid JSON file"))
+      }
+    }
+    reader.onerror = () => reject(new Error("Failed to read file"))
+    reader.readAsText(file)
+  })
+}
+

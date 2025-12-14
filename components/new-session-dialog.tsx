@@ -128,22 +128,22 @@ export default function NewSessionDialog({ open, onOpenChange, onAdd, onLoadTemp
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
               <Label htmlFor="session-name">Or Create New Session</Label>
-              <Input
-                id="session-name"
-                placeholder="e.g., Push Day, Leg Day..."
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <Button type="submit" className="w-full" disabled={!name.trim()}>
+            <Input
+              id="session-name"
+              placeholder="e.g., Push Day, Leg Day..."
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={!name.trim()}>
               <Plus className="w-4 h-4 mr-2" />
-              Create Session
-            </Button>
-          </form>
+            Create Session
+          </Button>
+        </form>
         </div>
       </DialogContent>
     </Dialog>
