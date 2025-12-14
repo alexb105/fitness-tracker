@@ -305,19 +305,32 @@ export default function Home() {
 
     try {
       const data = await readFileAsJSON(file)
+      
+      // Show confirmation dialog
+      if (!confirm("This will replace all your current data. Are you sure you want to continue?")) {
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ""
+        }
+        return
+      }
+
       const result = importAllData(data, { replace: true })
       
       if (result.success) {
-        // Reload data from localStorage
+        // Reload all data from localStorage
         const stored = localStorage.getItem("workout-days")
         if (stored) {
           setDays(JSON.parse(stored))
         }
         setTargetSessions(getTargetSessionsPerWeek())
         
+        // Clear selected session/day to refresh UI
+        setSelectedSession(null)
+        setSelectedDay(null)
+        
         toast({
-          title: "Data imported",
-          description: result.message,
+          title: "Data imported successfully",
+          description: "All your workout data has been restored",
         })
       } else {
         toast({

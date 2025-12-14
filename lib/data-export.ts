@@ -1,10 +1,31 @@
+/**
+ * Complete user data export structure.
+ * This includes ALL user data for full device-to-device transfer:
+ * 
+ * - days: All workout days with complete nested data:
+ *   - Sessions (with names)
+ *   - Exercises (with names, colors, and IDs)
+ *   - Personal Bests (reps, weight, dates)
+ * 
+ * - exercises: Global exercise library:
+ *   - Exercise names
+ *   - Exercise colors
+ *   - Creation dates
+ * 
+ * - templates: Saved session templates:
+ *   - Template names
+ *   - Exercise lists
+ *   - Creation dates
+ * 
+ * - target: Weekly workout target setting
+ */
 export interface ExportedData {
   version: string
   exportDate: string
-  days: unknown
-  exercises: unknown
-  templates: unknown
-  target: number
+  days: unknown // WorkoutDay[] - includes sessions, exercises, and PBs
+  exercises: unknown // GlobalExercise[] - includes names and colors
+  templates: unknown // SessionTemplate[] - includes session templates
+  target: number // Weekly workout target
 }
 
 const STORAGE_KEYS = {
@@ -26,36 +47,57 @@ export function exportAllData(): ExportedData | null {
     target: 3,
   }
 
-  // Export days
-  const daysData = localStorage.getItem(STORAGE_KEYS.days)
-  if (daysData) {
-    data.days = JSON.parse(daysData)
-  }
+  try {
+    // Export days (includes all sessions, exercises, and PBs)
+    const daysData = localStorage.getItem(STORAGE_KEYS.days)
+    if (daysData) {
+      const parsed = JSON.parse(daysData)
+      // Validate it's an array
+      if (Array.isArray(parsed)) {
+        data.days = parsed
+      }
+    }
 
-  // Export exercises
-  const exercisesData = localStorage.getItem(STORAGE_KEYS.exercises)
-  if (exercisesData) {
-    data.exercises = JSON.parse(exercisesData)
-  }
+    // Export exercises (includes names and colors)
+    const exercisesData = localStorage.getItem(STORAGE_KEYS.exercises)
+    if (exercisesData) {
+      const parsed = JSON.parse(exercisesData)
+      // Validate it's an array
+      if (Array.isArray(parsed)) {
+        data.exercises = parsed
+      }
+    }
 
-  // Export templates
-  const templatesData = localStorage.getItem(STORAGE_KEYS.templates)
-  if (templatesData) {
-    data.templates = JSON.parse(templatesData)
-  }
+    // Export templates (includes session templates)
+    const templatesData = localStorage.getItem(STORAGE_KEYS.templates)
+    if (templatesData) {
+      const parsed = JSON.parse(templatesData)
+      // Validate it's an array
+      if (Array.isArray(parsed)) {
+        data.templates = parsed
+      }
+    }
 
-  // Export target
-  const targetData = localStorage.getItem(STORAGE_KEYS.target)
-  if (targetData) {
-    data.target = parseInt(targetData, 10) || 3
-  }
+    // Export target
+    const targetData = localStorage.getItem(STORAGE_KEYS.target)
+    if (targetData) {
+      const parsed = parseInt(targetData, 10)
+      if (!isNaN(parsed) && parsed > 0) {
+        data.target = parsed
+      }
+    }
 
-  return data
+    return data
+  } catch (error) {
+    console.error("Error exporting data:", error)
+    return null
+  }
 }
 
 export function downloadData(data: ExportedData): void {
   if (typeof window === "undefined") return
 
+  // Create a comprehensive backup file with all user data
   const jsonString = JSON.stringify(data, null, 2)
   const blob = new Blob([jsonString], { type: "application/json" })
   const url = URL.createObjectURL(blob)
@@ -82,19 +124,50 @@ export function importAllData(
       return { success: false, message: "Invalid data format" }
     }
 
+    // Validate version (for future compatibility)
+    if (data.version && data.version !== "1.0") {
+      console.warn(`Importing data from version ${data.version}, current version is 1.0`)
+    }
+
     if (options.replace) {
-      // Replace all data
-      if (data.days) {
-        localStorage.setItem(STORAGE_KEYS.days, JSON.stringify(data.days))
+      // Replace all data - clear existing first
+      if (data.days !== null && data.days !== undefined) {
+        if (Array.isArray(data.days)) {
+          localStorage.setItem(STORAGE_KEYS.days, JSON.stringify(data.days))
+        } else {
+          return { success: false, message: "Invalid days data format" }
+        }
+      } else {
+        // Clear days if not in import
+        localStorage.removeItem(STORAGE_KEYS.days)
       }
-      if (data.exercises) {
-        localStorage.setItem(STORAGE_KEYS.exercises, JSON.stringify(data.exercises))
+
+      if (data.exercises !== null && data.exercises !== undefined) {
+        if (Array.isArray(data.exercises)) {
+          localStorage.setItem(STORAGE_KEYS.exercises, JSON.stringify(data.exercises))
+        } else {
+          return { success: false, message: "Invalid exercises data format" }
+        }
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.exercises)
       }
-      if (data.templates) {
-        localStorage.setItem(STORAGE_KEYS.templates, JSON.stringify(data.templates))
+
+      if (data.templates !== null && data.templates !== undefined) {
+        if (Array.isArray(data.templates)) {
+          localStorage.setItem(STORAGE_KEYS.templates, JSON.stringify(data.templates))
+        } else {
+          return { success: false, message: "Invalid templates data format" }
+        }
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.templates)
       }
-      if (data.target !== undefined) {
-        localStorage.setItem(STORAGE_KEYS.target, data.target.toString())
+
+      if (data.target !== undefined && data.target !== null) {
+        if (typeof data.target === "number" && data.target > 0) {
+          localStorage.setItem(STORAGE_KEYS.target, data.target.toString())
+        }
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.target)
       }
     } else {
       // Merge data (append new items, keep existing)
