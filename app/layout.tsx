@@ -12,6 +12,15 @@ export const metadata: Metadata = {
   title: "Zenturah Pro",
   description: "Track your workout sessions and personal bests",
   generator: "v0.app",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Zenturah Pro",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       {
@@ -33,6 +42,11 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#1a1a2e",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 }
 
 export default function RootLayout({

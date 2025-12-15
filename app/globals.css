@@ -275,3 +275,52 @@ input[type="number"] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Safe area insets for notched devices (iPhone X+, Android) */
+html {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+body {
+  /* Prevent pull-to-refresh on mobile */
+  overscroll-behavior-y: contain;
+  /* Prevent text selection on double tap */
+  -webkit-user-select: none;
+  user-select: none;
+  /* Allow text selection in inputs */
+}
+
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Standalone PWA mode adjustments */
+@media (display-mode: standalone) {
+  body {
+    /* Extra padding for status bar when running as PWA */
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+/* iOS input zoom prevention */
+@supports (-webkit-touch-callout: none) {
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Improve touch targets on mobile */
+@media (hover: none) and (pointer: coarse) {
+  button, 
+  [role="button"],
+  a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

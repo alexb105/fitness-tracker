@@ -48,7 +48,18 @@ export default function DayDetail({ day, onBack, onUpdate }: DayDetailProps) {
   }
 
   if (selectedSession) {
-    return <SessionDetail session={selectedSession} onBack={() => setSelectedSession(null)} onUpdate={updateSession} />
+    return (
+      <SessionDetail 
+        session={selectedSession} 
+        workoutDate={day.date}
+        onBack={() => setSelectedSession(null)} 
+        onUpdate={updateSession}
+        onDelete={(sessionId) => {
+          deleteSession(sessionId)
+          setSelectedSession(null)
+        }}
+      />
+    )
   }
 
   return (

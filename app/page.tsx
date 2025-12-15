@@ -243,6 +243,40 @@ export default function Home() {
     })
   }
 
+  const deleteSession = (sessionId: string) => {
+    setDays((currentDays) => {
+      const dayWithSession = currentDays.find((d) => 
+        d.sessions.some((s) => s.id === sessionId)
+      )
+      
+      if (!dayWithSession) {
+        return currentDays
+      }
+
+      const remainingSessions = dayWithSession.sessions.filter((s) => s.id !== sessionId)
+      
+      // If no sessions left, remove the day entirely
+      if (remainingSessions.length === 0) {
+        const newDays = currentDays.filter((d) => d.id !== dayWithSession.id)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
+        return newDays
+      }
+
+      // Otherwise, update the day with remaining sessions
+      const updatedDay = {
+        ...dayWithSession,
+        sessions: remainingSessions,
+      }
+
+      const newDays = currentDays.map((d) => 
+        d.id === updatedDay.id ? updatedDay : d
+      )
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
+      return newDays
+    })
+  }
+
   const getTotalExercises = (day: WorkoutDay) => {
     return day.sessions.reduce((total, session) => total + session.exercises.length, 0)
   }
@@ -410,6 +444,7 @@ export default function Home() {
           setSelectedDay(null)
         }}
         onUpdate={updateSession}
+        onDelete={deleteSession}
         allDays={days}
       />
     )
