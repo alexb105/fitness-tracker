@@ -1,19 +1,23 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { Plus, Dumbbell, Calendar, ChevronRight, Trash2, TrendingUp, Target, Flame, Settings, Download, Upload, List, ChevronLeft } from "lucide-react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { Dumbbell, ChevronRight, Trash2, Target, Flame, Settings, Download, Upload, List, ChevronLeft, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ReferenceLine } from "recharts"
 import SessionDetail from "@/components/session-detail"
 import ManageExercisesDialog from "@/components/manage-exercises-dialog"
 import { getTargetSessionsPerWeek, setTargetSessionsPerWeek, calculateStreak } from "@/lib/workout-settings"
 import { exportAllData, downloadData, importAllData, readFileAsJSON } from "@/lib/data-export"
 import { useToast } from "@/hooks/use-toast"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export interface PersonalBest {
   id: string
@@ -42,6 +46,8 @@ export interface WorkoutDay {
   sessions: WorkoutSession[]
 }
 
+const STORAGE_KEY = "workout-days"
+
 export default function Home() {
   const [days, setDays] = useState<WorkoutDay[]>([])
   const [selectedDay, setSelectedDay] = useState<WorkoutDay | null>(null)
@@ -52,29 +58,104 @@ export default function Home() {
   const [showManageExercises, setShowManageExercises] = useState(false)
   const [tempTarget, setTempTarget] = useState<string>("3")
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
-    // Get Monday of current week
     const today = new Date()
     const day = today.getDay()
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1) // Adjust when day is Sunday
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1)
     const monday = new Date(today.setDate(diff))
     monday.setHours(0, 0, 0, 0)
     return monday
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const progressScrollRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
 
+  // Load data on mount
   useEffect(() => {
-    const stored = localStorage.getItem("workout-days")
+    const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
-      setDays(JSON.parse(stored))
+      try {
+        setDays(JSON.parse(stored))
+      } catch (e) {
+        console.error("Error parsing workout days:", e)
+      }
     }
     setTargetSessions(getTargetSessionsPerWeek())
   }, [])
 
-  const saveDays = (newDays: WorkoutDay[]) => {
+  // Auto-scroll progress to show current week (bottom)
+  useEffect(() => {
+    if (progressScrollRef.current && days.length > 0) {
+      progressScrollRef.current.scrollTop = progressScrollRef.current.scrollHeight
+    }
+  }, [days.length])
+
+  // Save days helper
+  const saveDays = useCallback((newDays: WorkoutDay[]) => {
     setDays(newDays)
-    localStorage.setItem("workout-days", JSON.stringify(newDays))
-  }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
+  }, [])
+
+  // Get fresh data from localStorage (handles race conditions)
+  const getFreshDays = useCallback((): WorkoutDay[] => {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      try {
+        const parsedDays = JSON.parse(stored)
+        if (JSON.stringify(parsedDays) !== JSON.stringify(days)) {
+          setDays(parsedDays)
+          return parsedDays
+        }
+      } catch (e) {
+        console.error("Error parsing stored days:", e)
+      }
+    }
+    return days
+  }, [days])
+
+  // Unified function to open a workout for a specific date
+  const openWorkoutForDate = useCallback((date: Date) => {
+    const currentDays = getFreshDays()
+    const dateStr = date.toISOString().split("T")[0]
+    let day = currentDays.find((d) => d.date.split("T")[0] === dateStr)
+    let updatedDays = currentDays
+
+    // Create day if doesn't exist
+    if (!day) {
+      const dateCopy = new Date(date)
+      dateCopy.setHours(0, 0, 0, 0)
+      day = {
+        id: crypto.randomUUID(),
+        date: dateCopy.toISOString(),
+        sessions: [],
+      }
+      updatedDays = [...currentDays, day].sort((a, b) => 
+        new Date(b.date).getTime() - new Date(a.date).getTime()
+      )
+    }
+
+    // Create session if empty
+    if (day.sessions.length === 0) {
+      const newSession: WorkoutSession = {
+        id: crypto.randomUUID(),
+        name: "Workout",
+        exercises: [],
+      }
+      
+      day = { ...day, sessions: [newSession] }
+      updatedDays = updatedDays.map((d) => (d.id === day!.id ? day! : d))
+      
+      // If day was newly created, add it
+      if (!currentDays.find((d) => d.id === day!.id)) {
+        updatedDays = [...updatedDays.filter(d => d.id !== day!.id), day].sort((a, b) => 
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        )
+      }
+    }
+
+    saveDays(updatedDays)
+    setSelectedDay(day)
+    setSelectedSession(day.sessions[0])
+  }, [getFreshDays, saveDays])
 
   const getWeekDays = (weekStart: Date): Date[] => {
     const weekDays: Date[] = []
@@ -89,78 +170,6 @@ export default function Home() {
   const getDayForDate = (date: Date): WorkoutDay | null => {
     const dateStr = date.toISOString().split("T")[0]
     return days.find((d) => d.date.split("T")[0] === dateStr) || null
-  }
-
-  const getOrCreateDay = (date: Date): WorkoutDay => {
-    const existing = getDayForDate(date)
-    if (existing) {
-      return existing
-    }
-    
-    // Create new day (create a new date object to avoid mutation)
-    const dateCopy = new Date(date)
-    dateCopy.setHours(0, 0, 0, 0)
-    const newDay: WorkoutDay = {
-      id: crypto.randomUUID(),
-      date: dateCopy.toISOString(),
-      sessions: [],
-    }
-    const newDays = [...days, newDay].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    )
-    saveDays(newDays)
-    return newDay
-  }
-
-  const handleDayClick = (date: Date) => {
-    const day = getOrCreateDay(date)
-    
-    // If day has no session, create one
-    if (day.sessions.length === 0) {
-      const newSession: WorkoutSession = {
-        id: crypto.randomUUID(),
-        name: "Workout",
-        exercises: [],
-      }
-      const updatedDay = {
-        ...day,
-        sessions: [newSession],
-      }
-      const newDays = days.map((d) => (d.id === updatedDay.id ? updatedDay : d))
-      saveDays(newDays)
-      setSelectedSession(newSession)
-      setSelectedDay(updatedDay)
-    } else {
-      // Go directly to the session
-      setSelectedSession(day.sessions[0])
-      setSelectedDay(day)
-    }
-  }
-
-  const addDay = () => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const day = getOrCreateDay(today)
-    
-    // If day has no session, create one
-    if (day.sessions.length === 0) {
-      const newSession: WorkoutSession = {
-        id: crypto.randomUUID(),
-        name: "Workout",
-        exercises: [],
-      }
-      const updatedDay = {
-        ...day,
-        sessions: [newSession],
-      }
-      const newDays = days.map((d) => (d.id === updatedDay.id ? updatedDay : d))
-      saveDays(newDays)
-      setSelectedSession(newSession)
-      setSelectedDay(updatedDay)
-    } else {
-      setSelectedSession(day.sessions[0])
-      setSelectedDay(day)
-    }
   }
 
   const goToPreviousWeek = () => {
@@ -188,91 +197,116 @@ export default function Home() {
     saveDays(days.filter((d) => d.id !== id))
   }
 
-  const updateDay = (updatedDay: WorkoutDay) => {
-    const newDays = days.map((d) => (d.id === updatedDay.id ? updatedDay : d))
-    saveDays(newDays)
-    setSelectedDay(updatedDay)
-  }
-
   const updateSession = (updatedSession: WorkoutSession) => {
-    if (!selectedDay) {
-      // If selectedDay is not set, find the day that contains this session
-      const dayWithSession = days.find((d) => d.sessions.some((s) => s.id === updatedSession.id))
-      if (!dayWithSession) return
+    setDays((currentDays) => {
+      const dayWithSession = currentDays.find((d) => 
+        d.sessions.some((s) => s.id === updatedSession.id)
+      )
+      
+      if (!dayWithSession) {
+        console.warn("Could not find day for session:", updatedSession.id)
+        return currentDays
+      }
+
       const updatedDay = {
         ...dayWithSession,
-        sessions: dayWithSession.sessions.map((s) => (s.id === updatedSession.id ? updatedSession : s)),
+        sessions: dayWithSession.sessions.map((s) => 
+          s.id === updatedSession.id ? updatedSession : s
+        ),
       }
-      const newDays = days.map((d) => (d.id === updatedDay.id ? updatedDay : d))
-      saveDays(newDays)
-      setSelectedDay(updatedDay)
-      setSelectedSession(updatedSession)
-    } else {
-      const updatedDay = {
-        ...selectedDay,
-        sessions: selectedDay.sessions.map((s) => (s.id === updatedSession.id ? updatedSession : s)),
+
+      const newDays = currentDays.map((d) => 
+        d.id === updatedDay.id ? updatedDay : d
+      )
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
+      return newDays
+    })
+
+    setSelectedSession((current) => 
+      current?.id === updatedSession.id ? updatedSession : current
+    )
+
+    setSelectedDay((current) => {
+      if (current) {
+        const sessionInDay = current.sessions.find((s) => s.id === updatedSession.id)
+        if (sessionInDay) {
+          return {
+            ...current,
+            sessions: current.sessions.map((s) => 
+              s.id === updatedSession.id ? updatedSession : s
+            ),
+          }
+        }
       }
-      const newDays = days.map((d) => (d.id === updatedDay.id ? updatedDay : d))
-      saveDays(newDays)
-      setSelectedDay(updatedDay)
-      setSelectedSession(updatedSession)
-    }
+      return current
+    })
   }
 
   const getTotalExercises = (day: WorkoutDay) => {
     return day.sessions.reduce((total, session) => total + session.exercises.length, 0)
   }
 
-  // Prepare workout frequency data for the last 12 weeks
-  const getWorkoutFrequencyData = () => {
-    const weeks: { week: string; workouts: number; metTarget: boolean }[] = []
+  // Get all weeks data from first workout to current week
+  const getAllWeeksData = () => {
+    if (days.length === 0) return []
+    
+    const weeks: { weekLabel: string; workouts: number; metTarget: boolean; isCurrentWeek: boolean }[] = []
     const now = new Date()
     
-    // Get last 12 weeks
-    for (let i = 11; i >= 0; i--) {
-      const weekStart = new Date(now)
-      weekStart.setDate(now.getDate() - (i * 7) - (now.getDay() || 7) + 1) // Start of week (Monday)
-      weekStart.setHours(0, 0, 0, 0)
-      
+    // Find the earliest workout date
+    const earliestDate = days.reduce((earliest, day) => {
+      const dayDate = new Date(day.date)
+      return dayDate < earliest ? dayDate : earliest
+    }, new Date(days[0].date))
+    
+    // Get the Monday of the earliest workout week
+    const firstWeekStart = new Date(earliestDate)
+    const dayOfWeek = firstWeekStart.getDay()
+    const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    firstWeekStart.setDate(firstWeekStart.getDate() + diff)
+    firstWeekStart.setHours(0, 0, 0, 0)
+    
+    // Get current week's Monday
+    const currentWeekStart = new Date(now)
+    const currentDayOfWeek = currentWeekStart.getDay()
+    const currentDiff = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek
+    currentWeekStart.setDate(currentWeekStart.getDate() + currentDiff)
+    currentWeekStart.setHours(0, 0, 0, 0)
+    
+    // Generate all weeks from first workout to current week
+    let weekStart = new Date(firstWeekStart)
+    while (weekStart <= currentWeekStart) {
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 6)
       weekEnd.setHours(23, 59, 59, 999)
       
-      // Count workouts in this week
       const workoutsInWeek = days.filter((day) => {
         const dayDate = new Date(day.date)
         return dayDate >= weekStart && dayDate <= weekEnd
       }).length
       
-      const weekLabel = weekStart.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })
+      const isCurrentWeek = weekStart.getTime() === currentWeekStart.getTime()
       
       weeks.push({
-        week: weekLabel,
+        weekLabel: weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
         workouts: workoutsInWeek,
         metTarget: workoutsInWeek >= targetSessions,
+        isCurrentWeek,
       })
+      
+      // Move to next week
+      weekStart = new Date(weekStart)
+      weekStart.setDate(weekStart.getDate() + 7)
     }
     
     return weeks
   }
 
-  const frequencyData = getWorkoutFrequencyData()
+  const allWeeks = getAllWeeksData()
   const totalWorkouts = days.length
-  const averagePerWeek = totalWorkouts > 0 
-    ? (totalWorkouts / Math.max(1, frequencyData.filter(w => w.workouts > 0).length || 1)).toFixed(1)
-    : "0"
 
   const { currentStreak, longestStreak } = calculateStreak(days, targetSessions)
-
-  const chartConfig = {
-    workouts: {
-      label: "Workouts",
-      color: "hsl(142, 76%, 36%)", // Green
-    },
-  }
 
   const handleSaveTarget = () => {
     const target = parseInt(tempTarget, 10)
@@ -280,6 +314,10 @@ export default function Home() {
       setTargetSessionsPerWeek(target)
       setTargetSessions(target)
       setShowTargetDialog(false)
+      toast({
+        title: "Target updated",
+        description: `Weekly target set to ${target} sessions`,
+      })
     }
   }
 
@@ -287,9 +325,12 @@ export default function Home() {
     const data = exportAllData()
     if (data) {
       downloadData(data)
+      const daysCount = Array.isArray(data.days) ? data.days.length : 0
+      const exercisesCount = Array.isArray(data.exercises) ? data.exercises.length : 0
+      const templatesCount = Array.isArray(data.templates) ? data.templates.length : 0
       toast({
-        title: "Data exported",
-        description: "Your workout data has been downloaded",
+        title: "Backup downloaded",
+        description: `Exported ${daysCount} workouts, ${exercisesCount} exercises, ${templatesCount} templates`,
       })
     } else {
       toast({
@@ -307,31 +348,26 @@ export default function Home() {
     try {
       const data = await readFileAsJSON(file)
       
-      // Show confirmation dialog
       if (!confirm("This will replace all your current data. Are you sure you want to continue?")) {
-        if (fileInputRef.current) {
-          fileInputRef.current.value = ""
-        }
+        if (fileInputRef.current) fileInputRef.current.value = ""
         return
       }
 
       const result = importAllData(data, { replace: true })
       
       if (result.success) {
-        // Reload all data from localStorage
-        const stored = localStorage.getItem("workout-days")
-        if (stored) {
-          setDays(JSON.parse(stored))
-        }
+        const stored = localStorage.getItem(STORAGE_KEY)
+        if (stored) setDays(JSON.parse(stored))
         setTargetSessions(getTargetSessionsPerWeek())
-        
-        // Clear selected session/day to refresh UI
         setSelectedSession(null)
         setSelectedDay(null)
         
+        const daysCount = Array.isArray(data.days) ? data.days.length : 0
+        const exercisesCount = Array.isArray(data.exercises) ? data.exercises.length : 0
+        const templatesCount = Array.isArray(data.templates) ? data.templates.length : 0
         toast({
-          title: "Data imported successfully",
-          description: "All your workout data has been restored",
+          title: "Data restored successfully",
+          description: `Imported ${daysCount} workouts, ${exercisesCount} exercises, ${templatesCount} templates`,
         })
       } else {
         toast({
@@ -348,17 +384,27 @@ export default function Home() {
       })
     }
 
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ""
-    }
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
-  // Show session detail if a session is selected
-  if (selectedSession) {
+  // Check if current week is being viewed
+  const isCurrentWeek = () => {
+    const today = new Date()
+    const todayWeekStart = new Date(today)
+    const day = today.getDay()
+    const diff = today.getDate() - day + (day === 0 ? -6 : 1)
+    todayWeekStart.setDate(diff)
+    todayWeekStart.setHours(0, 0, 0, 0)
+    return currentWeekStart.getTime() === todayWeekStart.getTime()
+  }
+
+  // Show session detail if selected
+  if (selectedSession && selectedDay) {
     return (
       <SessionDetail
+        key={`${selectedSession.id}-${selectedSession.exercises.length}`}
         session={selectedSession}
+        workoutDate={selectedDay.date}
         onBack={() => {
           setSelectedSession(null)
           setSelectedDay(null)
@@ -370,337 +416,381 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="max-w-lg mx-auto p-4 sm:p-6">
-        <header className="mb-6 sm:mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Dumbbell className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-              </div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Workout Tracker</h1>
+    <TooltipProvider>
+      <main className="min-h-screen bg-background text-foreground">
+        <div className="max-w-lg mx-auto p-4 sm:p-6">
+          {/* Header */}
+          <header className="mb-6 sm:mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight">
+                <span className="bg-gradient-to-r from-primary via-emerald-400 to-primary bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient">
+                  Zenturah
+                </span>
+                <span className="ml-1.5 text-xs sm:text-sm font-bold px-1.5 py-0.5 bg-primary/15 text-primary rounded-md border border-primary/30 align-middle">
+                  PRO
+                </span>
+              </h1>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-10 w-10 sm:h-9 sm:w-9"
+                    onClick={() => setShowSettingsDialog(true)}
+                  >
+                    <Settings className="w-5 h-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Settings</TooltipContent>
+              </Tooltip>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 sm:h-9 sm:w-9"
-              onClick={() => setShowSettingsDialog(true)}
-            >
-              <Settings className="w-5 h-5" />
-            </Button>
-          </div>
-          <p className="text-sm sm:text-base text-muted-foreground">Track your daily workouts and PBs</p>
-        </header>
+            <p className="text-sm sm:text-base text-muted-foreground">Track your daily workouts and PBs</p>
+          </header>
 
-        {currentStreak > 0 && (
-          <Card className="p-4 sm:p-5 mb-6 bg-primary/5 border-primary/20">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Flame className="w-5 h-5 text-primary" />
+          {/* Streak Card */}
+          {currentStreak > 0 && (
+            <Card className="p-4 sm:p-5 mb-6 bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20 animate-in fade-in slide-in-from-top-2 duration-500">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/20 rounded-lg">
+                    <Flame className="w-5 h-5 text-primary animate-pulse" />
+                  </div>
+                  <div>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Current Streak</p>
+                    <p className="text-xl sm:text-2xl font-bold">
+                      {currentStreak} week{currentStreak !== 1 ? "s" : ""}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Current Streak</p>
-                  <p className="text-xl sm:text-2xl font-bold">
-                    {currentStreak} week{currentStreak !== 1 ? "s" : ""}
-                  </p>
+                <div className="text-right">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Target: {targetSessions}/week</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Best: {longestStreak} weeks</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs sm:text-sm text-muted-foreground">Target: {targetSessions}/week</p>
-                <p className="text-xs sm:text-sm text-muted-foreground">Best: {longestStreak} weeks</p>
-              </div>
-            </div>
-          </Card>
-        )}
+            </Card>
+          )}
 
-        <div className="flex gap-2 mb-6">
-          <Button onClick={addDay} className="flex-1 h-12 text-base font-medium">
-            <Plus className="w-5 h-5 mr-2" />
-            Add Today
-          </Button>
-          <Button
-            onClick={() => setShowManageExercises(true)}
-            variant="outline"
-            className="h-12 px-4"
-          >
-            <List className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {days.length > 0 && (
-          <Card className="p-4 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-semibold text-lg">Workout Frequency</h2>
+          {/* First Time User Prompt */}
+          {days.length === 0 && (
+            <Card className="p-6 mb-6 border-dashed border-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Dumbbell className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="font-semibold text-lg mb-2">Welcome to Zenturah Pro!</h3>
                 <p className="text-sm text-muted-foreground">
-                  {totalWorkouts} total workout{totalWorkouts !== 1 ? "s" : ""} • {averagePerWeek} avg/week • Target: {targetSessions}/week
+                  Tap any day below to start tracking your workouts
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => {
-                    setTempTarget(targetSessions.toString())
-                    setShowTargetDialog(true)
-                  }}
-                >
-                  <Settings className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-            <ChartContainer config={chartConfig} className="h-[200px] w-full">
-              <BarChart data={frequencyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis
-                  dataKey="week"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  className="text-xs"
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={8}
-                  className="text-xs"
-                  allowDecimals={false}
-                  domain={[0, Math.max(targetSessions, ...frequencyData.map(d => d.workouts)) + 1]}
-                />
-                <ChartTooltip
-                  content={
-                    <ChartTooltipContent
-                      formatter={(value, name, item) => {
-                        const metTarget = item.payload?.metTarget
-                        return [
-                          `${value} workout${value !== 1 ? "s" : ""}${metTarget ? " ✓" : ""}`,
-                          metTarget ? "Target Met!" : "Workouts"
-                        ]
+            </Card>
+          )}
+
+          {/* Weekly Progress */}
+          {days.length > 0 && (
+            <Card className="p-4 mb-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="font-semibold">Your Progress</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {totalWorkouts} workout{totalWorkouts !== 1 ? "s" : ""} • Target: {targetSessions}/week
+                  </p>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => {
+                        setTempTarget(targetSessions.toString())
+                        setShowTargetDialog(true)
                       }}
-                    />
-                  }
-                />
-                <ReferenceLine
-                  y={targetSessions}
-                  stroke="hsl(142, 76%, 36%)"
-                  strokeDasharray="3 3"
-                  label={{ value: "Target", position: "right", fill: "hsl(142, 76%, 36%)" }}
-                />
-                <Bar
-                  dataKey="workouts"
-                  fill="var(--color-workouts)"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ChartContainer>
-            <div className="mt-2 flex items-center justify-center gap-4 text-xs text-muted-foreground">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded bg-primary/20 border border-primary/40"></div>
-                <span>Target: {targetSessions}/week</span>
+                    >
+                      <Target className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Set Weekly Target</TooltipContent>
+                </Tooltip>
               </div>
+              
+              {/* Scrollable weeks visualization */}
+              <div ref={progressScrollRef} className="max-h-[200px] overflow-y-auto space-y-2 pr-1">
+                {allWeeks.map((week, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <span className={`text-xs w-16 flex-shrink-0 ${week.isCurrentWeek ? 'text-primary font-medium' : 'text-muted-foreground'}`}>
+                      {week.isCurrentWeek ? 'This week' : week.weekLabel}
+                    </span>
+                    <div className="flex-1 h-5 bg-muted/30 rounded-full overflow-hidden relative">
+                      {/* Target indicator */}
+                      <div 
+                        className="absolute top-0 bottom-0 w-px bg-primary/40"
+                        style={{ left: `${Math.min((targetSessions / 7) * 100, 100)}%` }}
+                      />
+                      {/* Progress bar */}
+                      <div 
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          week.metTarget 
+                            ? 'bg-primary' 
+                            : week.workouts > 0 
+                              ? 'bg-primary/60' 
+                              : ''
+                        }`}
+                        style={{ 
+                          width: week.workouts > 0 ? `${Math.min((week.workouts / 7) * 100, 100)}%` : '0%'
+                        }}
+                      />
+                    </div>
+                    <span className={`text-xs w-5 text-right font-medium flex-shrink-0 ${
+                      week.metTarget ? 'text-primary' : 'text-muted-foreground'
+                    }`}>
+                      {week.workouts}
+                    </span>
+                    {week.metTarget && (
+                      <span className="text-primary text-xs flex-shrink-0">✓</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {allWeeks.length > 6 && (
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  Scroll to see all {allWeeks.length} weeks
+                </p>
+              )}
+            </Card>
+          )}
+
+          {/* Week View */}
+          <Card className="p-5 sm:p-6 mb-6 border-2 animate-in fade-in slide-in-from-bottom-3 duration-300">
+            <div className="mb-5 pb-4 border-b">
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="w-5 h-5 text-primary" />
+                <h2 className="font-bold text-xl sm:text-2xl">Week View</h2>
+              </div>
+              <p className="text-sm sm:text-base text-muted-foreground">
+                {currentWeekStart.toLocaleDateString("en-US", { month: "long", day: "numeric" })}
+                {" – "}
+                {new Date(currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", {
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
             </div>
-          </Card>
-        )}
+            
+            <div className="space-y-2">
+              {getWeekDays(currentWeekStart).map((date, index) => {
+                const day = getDayForDate(date)
+                const isToday = date.toDateString() === new Date().toDateString()
+                const isPast = date < new Date() && !isToday
+                const isFuture = date > new Date()
+                const hasSession = day && day.sessions.length > 0
 
-        <Card className="p-5 sm:p-6 mb-6 border-2">
-          <div className="mb-5 pb-4 border-b">
-            <h2 className="font-bold text-xl sm:text-2xl mb-2">Week View</h2>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              {currentWeekStart.toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-              })}{" "}
-              -{" "}
-              {new Date(
-                currentWeekStart.getTime() + 6 * 24 * 60 * 60 * 1000
-              ).toLocaleDateString("en-US", {
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </p>
-          </div>
-          <div className="space-y-2">
-            {getWeekDays(currentWeekStart).map((date, index) => {
-              const day = getDayForDate(date)
-              const isToday =
-                date.toDateString() === new Date().toDateString()
-              const isPast = date < new Date() && !isToday
-              const isFuture = date > new Date()
-              const hasSession = day && day.sessions.length > 0
-
-              return (
-                <Card
-                  key={index}
-                  className={`p-4 sm:p-5 cursor-pointer hover:bg-accent/50 active:bg-accent/70 transition-colors group ${
-                    isToday ? "border-primary border-2" : ""
-                  } ${isPast ? "opacity-75" : ""} ${
-                    isFuture && hasSession ? "bg-primary/5 border-primary/20" : ""
-                  }`}
-                  onClick={() => handleDayClick(date)}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <h3 className="font-semibold text-sm sm:text-base">
-                          {date.toLocaleDateString("en-US", {
-                            weekday: "long",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </h3>
-                        {isToday && (
-                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full whitespace-nowrap">
-                            Today
-                          </span>
-                        )}
-                        {isFuture && (
-                          <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full whitespace-nowrap">
-                            Future
-                          </span>
+                return (
+                  <Card
+                    key={index}
+                    className={`p-4 sm:p-5 cursor-pointer transition-all duration-200 group hover:scale-[1.01] active:scale-[0.99] ${
+                      isToday 
+                        ? "border-primary border-2 bg-primary/5 shadow-md shadow-primary/10" 
+                        : "hover:bg-accent/50 active:bg-accent/70"
+                    } ${isPast ? "opacity-75" : ""} ${
+                      isFuture && hasSession ? "bg-primary/5 border-primary/20" : ""
+                    }`}
+                    onClick={() => openWorkoutForDate(date)}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h3 className="font-semibold text-sm sm:text-base">
+                            {date.toLocaleDateString("en-US", {
+                              weekday: "long",
+                              month: "short",
+                              day: "numeric",
+                            })}
+                          </h3>
+                          {isToday && (
+                            <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-medium animate-pulse">
+                              Today
+                            </span>
+                          )}
+                        </div>
+                        {day && day.sessions.length > 0 ? (
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/20 text-primary text-xs font-medium">
+                              {getTotalExercises(day)}
+                            </span>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                              {day.sessions[0].name}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs sm:text-sm text-muted-foreground/60 italic">
+                            {isToday ? "Tap to start a workout" : isFuture ? "Plan ahead" : "Rest day"}
+                          </p>
                         )}
                       </div>
-                      {day && day.sessions.length > 0 ? (
-                        <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                          {day.sessions[0].name}
-                          {" · "}
-                          {getTotalExercises(day)} exercise{getTotalExercises(day) !== 1 ? "s" : ""}
-                        </p>
-                      ) : (
-                        <p className="text-xs sm:text-sm text-muted-foreground/70">
-                          No workouts planned
-                        </p>
-                      )}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {day && (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteDay(day.id)
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete Workout</TooltipContent>
+                          </Tooltip>
+                        )}
+                        <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0 transition-transform group-hover:translate-x-0.5" />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {day && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-9 w-9 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deleteDay(day.id)
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      )}
-                      <ChevronRight className="w-5 h-5 text-muted-foreground flex-shrink-0" />
-                    </div>
-                  </div>
-                </Card>
-              )
-            })}
-          </div>
-          <div className="flex items-center justify-center gap-2 pt-4 mt-4 border-t">
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 rounded-full"
-              onClick={goToPreviousWeek}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              className="h-10 px-6 font-semibold rounded-full"
-              onClick={goToCurrentWeek}
-            >
-              Today
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10 rounded-full"
-              onClick={goToNextWeek}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-          </div>
-        </Card>
-
-
-        <Dialog open={showTargetDialog} onOpenChange={setShowTargetDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Set Weekly Target</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="target-sessions">Target Sessions Per Week</Label>
-                <Input
-                  id="target-sessions"
-                  type="number"
-                  min="1"
-                  max="7"
-                  value={tempTarget}
-                  onChange={(e) => setTempTarget(e.target.value)}
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">
-                  Set how many workout sessions you want to complete per week (1-7)
-                </p>
-              </div>
-              <Button onClick={handleSaveTarget} className="w-full">
-                <Target className="w-4 h-4 mr-2" />
-                Save Target
-              </Button>
+                  </Card>
+                )
+              })}
             </div>
-          </DialogContent>
-        </Dialog>
 
-        <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Settings</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-3">
-                <Label>Data Management</Label>
-                <div className="space-y-2">
-                  <Button onClick={handleExportData} variant="outline" className="w-full">
-                    <Download className="w-4 h-4 mr-2" />
-                    Export Data
-                  </Button>
+            {/* Week Navigation */}
+            <div className="flex items-center justify-center gap-2 pt-4 mt-4 border-t">
+              <Tooltip>
+                <TooltipTrigger asChild>
                   <Button
-                    onClick={() => fileInputRef.current?.click()}
                     variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-full"
+                    onClick={goToPreviousWeek}
+                  >
+                    <ChevronLeft className="w-5 h-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Previous Week</TooltipContent>
+              </Tooltip>
+              <Button
+                variant={isCurrentWeek() ? "default" : "outline"}
+                size="sm"
+                className="h-10 px-6 font-semibold rounded-full"
+                onClick={goToCurrentWeek}
+              >
+                Today
+              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 rounded-full"
+                    onClick={goToNextWeek}
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Next Week</TooltipContent>
+              </Tooltip>
+            </div>
+          </Card>
+
+          {/* Target Dialog */}
+          <Dialog open={showTargetDialog} onOpenChange={setShowTargetDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Set Weekly Target</DialogTitle>
+                <DialogDescription>
+                  How many workout sessions do you want to complete each week?
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="target-sessions">Sessions Per Week</Label>
+                  <Input
+                    id="target-sessions"
+                    type="number"
+                    min="1"
+                    max="7"
+                    value={tempTarget}
+                    onChange={(e) => setTempTarget(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <Button onClick={handleSaveTarget} className="w-full">
+                  <Target className="w-4 h-4 mr-2" />
+                  Save Target
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Settings Dialog */}
+          <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Settings</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <Label>Exercise Library</Label>
+                  <Button 
+                    onClick={() => {
+                      setShowSettingsDialog(false)
+                      setShowManageExercises(true)
+                    }} 
+                    variant="outline" 
                     className="w-full"
                   >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Import Data
+                    <List className="w-4 h-4 mr-2" />
+                    Manage Exercises
                   </Button>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".json"
-                    onChange={handleImportData}
-                    className="hidden"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Import will replace all existing data. Make sure to export first if you want to keep a backup.
-                  </p>
+                </div>
+                <div className="space-y-3">
+                  <Label>Backup & Restore</Label>
+                  <div className="space-y-2">
+                    <Button onClick={handleExportData} variant="outline" className="w-full">
+                      <Download className="w-4 h-4 mr-2" />
+                      Export All Data
+                    </Button>
+                    <Button
+                      onClick={() => fileInputRef.current?.click()}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      Import Data
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json"
+                      onChange={handleImportData}
+                      className="hidden"
+                    />
+                    <div className="text-xs text-muted-foreground space-y-1 pt-1">
+                      <p>Export includes:</p>
+                      <ul className="list-disc list-inside pl-1 space-y-0.5">
+                        <li>All workouts & personal bests</li>
+                        <li>Exercise library & muscle groups</li>
+                        <li>Saved templates</li>
+                        <li>Weekly target setting</li>
+                      </ul>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
 
-        <ManageExercisesDialog
-          open={showManageExercises}
-          onOpenChange={setShowManageExercises}
-          allDays={days}
-          onDaysUpdate={saveDays}
-        />
-      </div>
-    </main>
+          {/* Manage Exercises Dialog */}
+          <ManageExercisesDialog
+            open={showManageExercises}
+            onOpenChange={setShowManageExercises}
+            allDays={days}
+            onDaysUpdate={saveDays}
+          />
+        </div>
+      </main>
+    </TooltipProvider>
   )
 }

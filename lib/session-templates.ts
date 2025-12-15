@@ -3,7 +3,12 @@ import type { WorkoutSession, Exercise } from "@/app/page"
 export interface SessionTemplate {
   id: string
   name: string
-  exercises: Omit<Exercise, "pbs">[] // Exercises without PBs
+  exercises: Array<{
+    id: string
+    name: string
+    color?: string
+    type?: string
+  }>
   createdAt: string
 }
 
@@ -35,6 +40,8 @@ export function saveTemplate(session: WorkoutSession): { saved: boolean; isUpdat
     exercises: session.exercises.map((ex) => ({
       id: crypto.randomUUID(), // New ID for template
       name: ex.name,
+      color: ex.color,
+      type: ex.type,
     })),
     createdAt: existingIndex >= 0 ? templates[existingIndex].createdAt : new Date().toISOString(),
   }
@@ -92,6 +99,8 @@ export function loadTemplate(template: SessionTemplate): WorkoutSession {
       id: crypto.randomUUID(),
       name: ex.name,
       pbs: [],
+      color: ex.color,
+      type: ex.type,
     })),
   }
 }

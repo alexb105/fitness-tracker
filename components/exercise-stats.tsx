@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend } from "recharts"
-import type { WorkoutDay, PersonalBest } from "@/app/page"
+import type { WorkoutDay } from "@/app/page"
 import { getAllPBsForExercise, getBestPBForExercise } from "@/lib/exercises"
 
 interface ExerciseStatsProps {
@@ -17,20 +17,6 @@ interface ExerciseStatsProps {
 export default function ExerciseStats({ exerciseName, allDays, onBack }: ExerciseStatsProps) {
   const allTimePBs = getAllPBsForExercise(exerciseName, allDays)
   const allTimeBestPB = getBestPBForExercise(exerciseName, allDays)
-
-  // Group PBs by date
-  const pbsByDate = allTimePBs.reduce((acc, pb) => {
-    const date = new Date(pb.date).toLocaleDateString()
-    if (!acc[date]) {
-      acc[date] = []
-    }
-    acc[date].push(pb)
-    return acc
-  }, {} as Record<string, PersonalBest[]>)
-
-  const sortedDates = Object.keys(pbsByDate).sort(
-    (a, b) => new Date(b).getTime() - new Date(a).getTime()
-  )
 
   // Prepare chart data - sort chronologically for the graph
   const chartData = allTimePBs
@@ -154,47 +140,45 @@ export default function ExerciseStats({ exerciseName, allDays, onBack }: Exercis
             <p className="text-sm text-muted-foreground/70">Start tracking your progress!</p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <h2 className="font-semibold text-lg">All Personal Bests</h2>
-            {sortedDates.map((date) => (
-              <Card key={date} className="p-4">
-                <h3 className="font-medium text-sm text-muted-foreground mb-3">{date}</h3>
-                <div className="space-y-2">
-                  {pbsByDate[date].map((pb) => {
-                    const total = pb.reps * pb.weight
-                    const isBest = allTimeBestPB?.id === pb.id
-                    return (
-                      <div
-                        key={pb.id}
-                        className={`flex items-center justify-between text-sm rounded-lg px-3 py-2 ${
-                          isBest
-                            ? "bg-primary/10 border border-primary/20"
-                            : "bg-accent/30"
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
-                            {pb.reps} reps × {pb.weight}kg
-                          </span>
-                          <span className="text-muted-foreground text-xs">
-                            ({total}kg total)
-                          </span>
-                          {isBest && (
-                            <Trophy className="w-3.5 h-3.5 text-primary" />
-                          )}
-                        </div>
-                        <span className="text-muted-foreground text-xs">
-                          {new Date(pb.date).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+            <div className="space-y-1.5">
+              {allTimePBs
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .map((pb) => {
+                  const total = pb.reps * pb.weight
+                  const isBest = allTimeBestPB?.id === pb.id
+                  return (
+                    <div
+                      key={pb.id}
+                      className={`flex items-center justify-between text-sm rounded-lg px-3 py-2.5 ${
+                        isBest
+                          ? "bg-primary/10 border border-primary/20"
+                          : "bg-accent/30"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">
+                          {pb.reps} reps × {pb.weight}kg
                         </span>
+                        <span className="text-muted-foreground text-xs">
+                          ({total}kg total)
+                        </span>
+                        {isBest && (
+                          <Trophy className="w-3.5 h-3.5 text-primary" />
+                        )}
                       </div>
-                    )
-                  })}
-                </div>
-              </Card>
-            ))}
+                      <span className="text-muted-foreground text-xs">
+                        {new Date(pb.date).toLocaleDateString("en-GB", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  )
+                })}
+            </div>
           </div>
         )}
       </div>

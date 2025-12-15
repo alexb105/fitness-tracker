@@ -102,12 +102,16 @@ export function getExerciseType(exerciseName: string): string | undefined {
 
 export function addExercise(name: string, color?: string, type?: string) {
   if (typeof window === "undefined") return
+  
+  const trimmedName = name.trim()
+  if (!trimmedName) return // Don't save empty names
+  
   const stored = localStorage.getItem(EXERCISES_STORAGE_KEY)
   const exercises: GlobalExercise[] = stored ? JSON.parse(stored) : []
   
   // Check if exercise already exists (case-insensitive)
   const existingIndex = exercises.findIndex(
-    (e) => e.name.toLowerCase() === name.toLowerCase()
+    (e) => e.name.toLowerCase() === trimmedName.toLowerCase()
   )
   
   // If type is provided, get color from type if color not provided
@@ -121,10 +125,12 @@ export function addExercise(name: string, color?: string, type?: string) {
     if (type) {
       exercises[existingIndex].type = type
     }
+    // Always save to ensure persistence
     localStorage.setItem(EXERCISES_STORAGE_KEY, JSON.stringify(exercises))
   } else {
+    // Create new exercise entry - always save even without color/type
     exercises.push({
-      name: name.trim(),
+      name: trimmedName,
       createdAt: new Date().toISOString(),
       color: finalColor,
       type,
