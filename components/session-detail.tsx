@@ -286,16 +286,20 @@ export default function SessionDetail({ session, workoutDate, onBack, onUpdate, 
               const sessionBestPB = getBestPB(exercise)
               const allTimeBestPB = getAllTimeBestPB(exercise.name)
 
+              const borderColor = exercise.type 
+                ? (exercise.color || getMuscleGroupColor(exercise.type))
+                : "hsl(var(--muted-foreground) / 0.3)"
+              
               return (
-                <Card key={exercise.id} className="p-3 sm:p-4">
+                <Card 
+                  key={exercise.id} 
+                  className="p-3 sm:p-4 border-l-4"
+                  style={{ borderLeftColor: borderColor }}
+                  title={exercise.type || "Uncategorized"}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start gap-2 flex-wrap">
-                        <div
-                          className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full flex-shrink-0 mt-0.5"
-                          style={{ backgroundColor: exercise.type ? (exercise.color || getMuscleGroupColor(exercise.type)) : "hsl(var(--muted-foreground) / 0.3)" }}
-                          title={exercise.type || "Uncategorized"}
-                        />
                         <div className="flex-1 min-w-0">
                           <h3 className="font-semibold text-base sm:text-lg break-words">{exercise.name}</h3>
                           {exercise.type && (

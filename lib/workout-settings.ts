@@ -35,10 +35,10 @@ export function calculateStreak(
     weekEnd.setDate(weekStart.getDate() + 6)
     weekEnd.setHours(23, 59, 59, 999)
     
-    // Count workouts in this week
+    // Count workouts in this week (excluding future dates)
     const workoutsInWeek = days.filter((day) => {
       const dayDate = new Date(day.date)
-      return dayDate >= weekStart && dayDate <= weekEnd
+      return dayDate >= weekStart && dayDate <= weekEnd && dayDate <= now
     }).length
     
     weeks.push({

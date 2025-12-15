@@ -317,7 +317,8 @@ export default function Home() {
       
       const workoutsInWeek = days.filter((day) => {
         const dayDate = new Date(day.date)
-        return dayDate >= weekStart && dayDate <= weekEnd
+        // Only count workouts that are not in the future
+        return dayDate >= weekStart && dayDate <= weekEnd && dayDate <= now
       }).length
       
       const isCurrentWeek = weekStart.getTime() === currentWeekStart.getTime()
@@ -338,7 +339,12 @@ export default function Home() {
   }
 
   const allWeeks = getAllWeeksData()
-  const totalWorkouts = days.length
+  const now = new Date()
+  now.setHours(23, 59, 59, 999) // End of today
+  const totalWorkouts = days.filter((day) => {
+    const dayDate = new Date(day.date)
+    return dayDate <= now
+  }).length
 
   const { currentStreak, longestStreak } = calculateStreak(days, targetSessions)
 
