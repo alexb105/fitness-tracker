@@ -11,12 +11,13 @@ export const MUSCLE_GROUP_TYPES = [
   { name: "Chest", color: "#ef4444" }, // red
   { name: "Back", color: "#3b82f6" }, // blue
   { name: "Shoulders", color: "#8b5cf6" }, // purple
+  { name: "Traps", color: "#14b8a6" }, // teal
   { name: "Biceps", color: "#22c55e" }, // green
   { name: "Triceps", color: "#f97316" }, // orange
   { name: "Legs", color: "#eab308" }, // yellow
   { name: "Core", color: "#06b6d4" }, // cyan
   { name: "Cardio", color: "#ec4899" }, // pink
-  { name: "Other", color: "#64748b" }, // slate
+  { name: "Multi", color: "#64748b" }, // slate
 ] as const
 
 export function getMuscleGroupColor(type: string): string | undefined {

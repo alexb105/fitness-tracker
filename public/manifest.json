@@ -1,6 +1,6 @@
 {
-  "name": "Zenturah Pro",
-  "short_name": "Zenturah",
+  "name": "PBTrackPro",
+  "short_name": "PBTrack",
   "description": "Track your workout sessions and personal bests",
   "start_url": "/",
   "display": "standalone",

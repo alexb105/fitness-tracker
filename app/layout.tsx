@@ -9,14 +9,14 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Zenturah Pro",
+  title: "PBTrackPro",
   description: "Track your workout sessions and personal bests",
   generator: "v0.app",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Zenturah Pro",
+    title: "PBTrackPro",
   },
   formatDetection: {
     telephone: false,

@@ -38,8 +38,6 @@ export default function NewExerciseDialog({ open, onOpenChange, onAdd }: NewExer
       setShowCreateNew(false)
       setName("")
       setFilterType(undefined)
-      // Focus input after dialog animation
-      setTimeout(() => inputRef.current?.focus(), 100)
     }
   }, [open])
 

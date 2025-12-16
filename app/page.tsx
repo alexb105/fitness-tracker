@@ -1,10 +1,20 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Dumbbell, ChevronRight, Trash2, Target, Flame, Settings, Download, Upload, List, ChevronLeft, Calendar } from "lucide-react"
+import { Dumbbell, ChevronRight, Trash2, Target, Flame, Settings, Download, Upload, List, ChevronLeft, Calendar, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import SessionDetail from "@/components/session-detail"
@@ -56,6 +66,7 @@ export default function Home() {
   const [showTargetDialog, setShowTargetDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [showManageExercises, setShowManageExercises] = useState(false)
+  const [showClearDataDialog, setShowClearDataDialog] = useState(false)
   const [tempTarget, setTempTarget] = useState<string>("3")
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => {
     const today = new Date()
@@ -427,6 +438,27 @@ export default function Home() {
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  const handleClearAllData = () => {
+    // Clear all localStorage data
+    localStorage.removeItem("workout-days")
+    localStorage.removeItem("workout-exercises")
+    localStorage.removeItem("workout-session-templates")
+    localStorage.removeItem("workout-target-sessions-per-week")
+    
+    // Reset state
+    setDays([])
+    setTargetSessions(3)
+    setSelectedSession(null)
+    setSelectedDay(null)
+    setShowSettingsDialog(false)
+    setShowClearDataDialog(false)
+    
+    toast({
+      title: "All data cleared",
+      description: "Your app has been reset to a fresh start",
+    })
+  }
+
   // Check if current week is being viewed
   const isCurrentWeek = () => {
     const today = new Date()
@@ -464,10 +496,11 @@ export default function Home() {
           <header className="mb-6 sm:mb-8">
             <div className="flex items-center justify-between mb-2">
               <h1 className="text-xl sm:text-2xl font-black tracking-tight">
-                <span className="bg-gradient-to-r from-primary via-emerald-400 to-primary bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient">
-                  Zenturah
+                <span className="text-[rgba(200,0,255,1)]">PB</span>
+                <span className="bg-gradient-to-r from-emerald-500 to-teal-500 bg-clip-text text-transparent">
+                  Track
                 </span>
-                <span className="ml-1.5 text-xs sm:text-sm font-bold px-1.5 py-0.5 bg-primary/15 text-primary rounded-md border border-primary/30 align-middle">
+                <span className="ml-1.5 text-xs sm:text-sm font-bold px-1.5 py-0.5 bg-[rgba(184,24,205,0.31)] text-primary rounded-md border border-primary/30 align-middle">
                   PRO
                 </span>
               </h1>
@@ -518,7 +551,7 @@ export default function Home() {
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
                   <Dumbbell className="w-8 h-8 text-primary" />
                 </div>
-                <h3 className="font-semibold text-lg mb-2">Welcome to Zenturah Pro!</h3>
+                <h3 className="font-semibold text-lg mb-2">Welcome to PBTrackPro!</h3>
                 <p className="text-sm text-muted-foreground">
                   Tap any day below to start tracking your workouts
                 </p>
@@ -819,9 +852,54 @@ export default function Home() {
                     </div>
                   </div>
                 </div>
+                <div className="space-y-3 border-t pt-4">
+                  <Label className="text-destructive">Danger Zone</Label>
+                  <Button
+                    onClick={() => setShowClearDataDialog(true)}
+                    variant="destructive"
+                    className="w-full"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Clear All Data
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    This will permanently delete all workouts, exercises, templates, and settings. This action cannot be undone.
+                  </p>
+                </div>
               </div>
             </DialogContent>
           </Dialog>
+
+          {/* Clear All Data Confirmation Dialog */}
+          <AlertDialog open={showClearDataDialog} onOpenChange={setShowClearDataDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                  Clear All Data?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all your data including:
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>All workout sessions and personal bests</li>
+                    <li>Your exercise library</li>
+                    <li>All saved templates</li>
+                    <li>Your weekly target setting</li>
+                  </ul>
+                  <strong className="block mt-3">This action cannot be undone.</strong>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleClearAllData}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Clear All Data
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {/* Manage Exercises Dialog */}
           <ManageExercisesDialog

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { ArrowLeft, Plus, Trophy, Trash2, TrendingUp, BarChart3, Bookmark, BookmarkCheck, Pencil, FolderOpen } from "lucide-react"
+import { ArrowLeft, Plus, Trophy, Trash2, TrendingUp, BarChart3, Bookmark, BookmarkCheck, Pencil, FolderOpen, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -149,6 +149,23 @@ export default function SessionDetail({ session, workoutDate, onBack, onUpdate, 
       return e
     })
     onUpdate({ ...session, exercises: updatedExercises })
+  }
+
+  const clearPBs = (exerciseId: string) => {
+    const updatedExercises = session.exercises.map((e) => {
+      if (e.id === exerciseId) {
+        return {
+          ...e,
+          pbs: [],
+        }
+      }
+      return e
+    })
+    onUpdate({ ...session, exercises: updatedExercises })
+    toast({
+      title: "Data cleared",
+      description: "All personal bests for this exercise have been cleared",
+    })
   }
 
   const getBestPB = (exercise: Exercise) => {
@@ -327,21 +344,27 @@ export default function SessionDetail({ session, workoutDate, onBack, onUpdate, 
                       )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <Button 
-                        size="sm" 
-                        onClick={() => setSelectedExercise(exercise)}
-                        variant={exercise.pbs.length > 0 ? "outline" : "default"}
-                        className="h-8 px-2 sm:px-3"
-                      >
-                        {exercise.pbs.length > 0 ? (
-                          <span className="text-xs sm:text-sm">Edit</span>
-                        ) : (
-                          <>
-                            <Plus className="w-3.5 h-3.5 sm:mr-1" />
-                            <span className="hidden sm:inline text-sm">PB</span>
-                          </>
-                        )}
-                      </Button>
+                      {exercise.pbs.length > 0 ? (
+                        <Button 
+                          size="sm" 
+                          onClick={() => clearPBs(exercise.id)}
+                          variant="outline"
+                          className="h-8 px-2 sm:px-3"
+                        >
+                          <X className="w-3.5 h-3.5 sm:mr-1" />
+                          <span className="hidden sm:inline text-sm">Clear</span>
+                        </Button>
+                      ) : (
+                        <Button 
+                          size="sm" 
+                          onClick={() => setSelectedExercise(exercise)}
+                          variant="default"
+                          className="h-8 px-2 sm:px-3"
+                        >
+                          <Plus className="w-3.5 h-3.5 sm:mr-1" />
+                          <span className="hidden sm:inline text-sm">PB</span>
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
