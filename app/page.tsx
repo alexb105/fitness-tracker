@@ -106,29 +106,22 @@ export default function Home() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
   }, [])
 
-  // Get fresh data from localStorage (handles race conditions)
-  const getFreshDays = useCallback((): WorkoutDay[] => {
+  // Unified function to open a workout for a specific date
+  const openWorkoutForDate = useCallback((date: Date) => {
+    // Always read fresh from localStorage to avoid stale closure issues
     const stored = localStorage.getItem(STORAGE_KEY)
+    let currentDays: WorkoutDay[] = []
     if (stored) {
       try {
-        const parsedDays = JSON.parse(stored)
-        if (JSON.stringify(parsedDays) !== JSON.stringify(days)) {
-          setDays(parsedDays)
-          return parsedDays
-        }
+        currentDays = JSON.parse(stored)
       } catch (e) {
         console.error("Error parsing stored days:", e)
       }
     }
-    return days
-  }, [days])
-
-  // Unified function to open a workout for a specific date
-  const openWorkoutForDate = useCallback((date: Date) => {
-    const currentDays = getFreshDays()
+    
     const dateStr = date.toISOString().split("T")[0]
     let day = currentDays.find((d) => d.date.split("T")[0] === dateStr)
-    let updatedDays = currentDays
+    let needsSave = false
 
     // Create day if doesn't exist
     if (!day) {
@@ -139,9 +132,10 @@ export default function Home() {
         date: dateCopy.toISOString(),
         sessions: [],
       }
-      updatedDays = [...currentDays, day].sort((a, b) => 
+      currentDays = [...currentDays, day].sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       )
+      needsSave = true
     }
 
     // Create session if empty
@@ -153,20 +147,21 @@ export default function Home() {
       }
       
       day = { ...day, sessions: [newSession] }
-      updatedDays = updatedDays.map((d) => (d.id === day!.id ? day! : d))
-      
-      // If day was newly created, add it
-      if (!currentDays.find((d) => d.id === day!.id)) {
-        updatedDays = [...updatedDays.filter(d => d.id !== day!.id), day].sort((a, b) => 
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-        )
-      }
+      currentDays = currentDays.map((d) => (d.id === day!.id ? day! : d))
+      needsSave = true
     }
 
-    saveDays(updatedDays)
+    // Only save if we actually made changes
+    if (needsSave) {
+      saveDays(currentDays)
+    } else {
+      // Just sync state with localStorage without re-saving
+      setDays(currentDays)
+    }
+    
     setSelectedDay(day)
     setSelectedSession(day.sessions[0])
-  }, [getFreshDays, saveDays])
+  }, [saveDays])
 
   const getWeekDays = (weekStart: Date): Date[] => {
     const weekDays: Date[] = []

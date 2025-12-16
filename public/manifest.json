@@ -1,6 +1,7 @@
 {
   "name": "PBTrackPro",
   "short_name": "PBTrack",
+  "version": "1.0.0",
   "description": "Track your workout sessions and personal bests",
   "start_url": "/",
   "display": "standalone",
