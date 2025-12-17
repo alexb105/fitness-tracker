@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Dumbbell, ChevronRight, Trash2, Target, Flame, Settings, Download, Upload, List, ChevronLeft, Calendar, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -22,6 +22,7 @@ import ManageExercisesDialog from "@/components/manage-exercises-dialog"
 import { getTargetSessionsPerWeek, setTargetSessionsPerWeek, calculateStreak } from "@/lib/workout-settings"
 import { exportAllData, downloadData, importAllData, readFileAsJSON } from "@/lib/data-export"
 import { useToast } from "@/hooks/use-toast"
+import { useWorkoutData } from "@/hooks/use-workout-data"
 import {
   Tooltip,
   TooltipContent,
@@ -56,12 +57,21 @@ export interface WorkoutDay {
   sessions: WorkoutSession[]
 }
 
-const STORAGE_KEY = "workout-days"
-
 export default function Home() {
-  const [days, setDays] = useState<WorkoutDay[]>([])
-  const [selectedDay, setSelectedDay] = useState<WorkoutDay | null>(null)
-  const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null)
+  // Use the centralized workout data hook
+  const {
+    days,
+    selectedDay,
+    selectedSession,
+    openWorkoutForDate,
+    closeWorkout,
+    updateSession,
+    deleteSession,
+    deleteDay,
+    refreshData,
+    setDays,
+  } = useWorkoutData()
+
   const [targetSessions, setTargetSessions] = useState<number>(3)
   const [showTargetDialog, setShowTargetDialog] = useState(false)
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
@@ -80,16 +90,8 @@ export default function Home() {
   const progressScrollRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
 
-  // Load data on mount
+  // Load target sessions on mount
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      try {
-        setDays(JSON.parse(stored))
-      } catch (e) {
-        console.error("Error parsing workout days:", e)
-      }
-    }
     setTargetSessions(getTargetSessionsPerWeek())
   }, [])
 
@@ -99,69 +101,6 @@ export default function Home() {
       progressScrollRef.current.scrollTop = progressScrollRef.current.scrollHeight
     }
   }, [days.length])
-
-  // Save days helper
-  const saveDays = useCallback((newDays: WorkoutDay[]) => {
-    setDays(newDays)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
-  }, [])
-
-  // Unified function to open a workout for a specific date
-  const openWorkoutForDate = useCallback((date: Date) => {
-    // Always read fresh from localStorage to avoid stale closure issues
-    const stored = localStorage.getItem(STORAGE_KEY)
-    let currentDays: WorkoutDay[] = []
-    if (stored) {
-      try {
-        currentDays = JSON.parse(stored)
-      } catch (e) {
-        console.error("Error parsing stored days:", e)
-      }
-    }
-
-    const dateStr = date.toISOString().split("T")[0]
-    let day = currentDays.find((d) => d.date.split("T")[0] === dateStr)
-    let needsSave = false
-
-    // Create day if doesn't exist
-    if (!day) {
-      const dateCopy = new Date(date)
-      dateCopy.setHours(0, 0, 0, 0)
-      day = {
-        id: crypto.randomUUID(),
-        date: dateCopy.toISOString(),
-        sessions: [],
-      }
-      currentDays = [...currentDays, day].sort((a, b) => 
-        new Date(b.date).getTime() - new Date(a.date).getTime()
-      )
-      needsSave = true
-    }
-
-    // Create session if empty
-    if (day.sessions.length === 0) {
-      const newSession: WorkoutSession = {
-        id: crypto.randomUUID(),
-        name: "Workout",
-        exercises: [],
-      }
-      
-      day = { ...day, sessions: [newSession] }
-      currentDays = currentDays.map((d) => (d.id === day!.id ? day! : d))
-      needsSave = true
-    }
-
-    // Only save if we actually made changes
-    if (needsSave) {
-      saveDays(currentDays)
-    } else {
-      // Just sync state with localStorage without re-saving
-      setDays(currentDays)
-    }
-    
-    setSelectedDay(day)
-    setSelectedSession(day.sessions[0])
-  }, [saveDays])
 
   const getWeekDays = (weekStart: Date): Date[] => {
     const weekDays: Date[] = []
@@ -199,143 +138,6 @@ export default function Home() {
     setCurrentWeekStart(monday)
   }
 
-  const deleteDay = (id: string) => {
-    saveDays(days.filter((d) => d.id !== id))
-  }
-
-  const updateSession = (updatedSession: WorkoutSession) => {
-    // Read fresh from localStorage to avoid stale state issues
-    const stored = localStorage.getItem(STORAGE_KEY)
-    let currentDays: WorkoutDay[] = []
-    if (stored) {
-      try {
-        currentDays = JSON.parse(stored)
-      } catch (e) {
-        console.error("Error parsing stored days:", e)
-      }
-    }
-
-    let dayWithSession = currentDays.find((d) => 
-      d.sessions.some((s) => s.id === updatedSession.id)
-    )
-
-    // If day not found in localStorage, use selectedDay as fallback
-    // This handles the case where state update hasn't synced to localStorage yet
-    if (!dayWithSession && selectedDay) {
-      const sessionInSelectedDay = selectedDay.sessions.find((s) => s.id === updatedSession.id)
-      if (sessionInSelectedDay) {
-        // Add selectedDay to currentDays if it doesn't exist
-        const existingDayIndex = currentDays.findIndex((d) => d.id === selectedDay.id)
-        if (existingDayIndex >= 0) {
-          dayWithSession = currentDays[existingDayIndex]
-        } else {
-          // Day doesn't exist in localStorage, add it
-          currentDays = [...currentDays, selectedDay].sort((a, b) => 
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-          )
-          dayWithSession = selectedDay
-        }
-      }
-    }
-
-    if (!dayWithSession) {
-      console.warn("Could not find day for session:", updatedSession.id)
-      return
-    }
-
-    const updatedDay = {
-      ...dayWithSession,
-      sessions: dayWithSession.sessions.map((s) => 
-        s.id === updatedSession.id ? updatedSession : s
-      ),
-    }
-
-    const newDays = currentDays.map((d) => 
-      d.id === updatedDay.id ? updatedDay : d
-    )
-
-    // Save to localStorage and update state
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
-    setDays(newDays)
-
-    setSelectedSession((current) => 
-      current?.id === updatedSession.id ? updatedSession : current
-    )
-
-    setSelectedDay((current) => {
-      if (current) {
-        const sessionInDay = current.sessions.find((s) => s.id === updatedSession.id)
-        if (sessionInDay) {
-          return {
-            ...current,
-            sessions: current.sessions.map((s) => 
-              s.id === updatedSession.id ? updatedSession : s
-            ),
-          }
-        }
-      }
-      return current
-    })
-  }
-
-  const deleteSession = (sessionId: string) => {
-    // Read fresh from localStorage to avoid stale state issues
-    const stored = localStorage.getItem(STORAGE_KEY)
-    let currentDays: WorkoutDay[] = []
-    if (stored) {
-      try {
-        currentDays = JSON.parse(stored)
-      } catch (e) {
-        console.error("Error parsing stored days:", e)
-      }
-    }
-
-    let dayWithSession = currentDays.find((d) => 
-      d.sessions.some((s) => s.id === sessionId)
-    )
-
-    // If day not found in localStorage, use selectedDay as fallback
-    if (!dayWithSession && selectedDay) {
-      const sessionInSelectedDay = selectedDay.sessions.find((s) => s.id === sessionId)
-      if (sessionInSelectedDay) {
-        const existingDayIndex = currentDays.findIndex((d) => d.id === selectedDay.id)
-        if (existingDayIndex >= 0) {
-          dayWithSession = currentDays[existingDayIndex]
-        } else {
-          currentDays = [...currentDays, selectedDay].sort((a, b) => 
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-          )
-          dayWithSession = selectedDay
-        }
-      }
-    }
-
-    if (!dayWithSession) {
-      return
-    }
-
-    const remainingSessions = dayWithSession.sessions.filter((s) => s.id !== sessionId)
-
-    let newDays: WorkoutDay[]
-    
-    // If no sessions left, remove the day entirely
-    if (remainingSessions.length === 0) {
-      newDays = currentDays.filter((d) => d.id !== dayWithSession!.id)
-    } else {
-      // Otherwise, update the day with remaining sessions
-      const updatedDay = {
-        ...dayWithSession,
-        sessions: remainingSessions,
-      }
-      newDays = currentDays.map((d) => 
-        d.id === updatedDay.id ? updatedDay : d
-      )
-    }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
-    setDays(newDays)
-  }
-
   const getTotalExercises = (day: WorkoutDay) => {
     return day.sessions.reduce((total, session) => total + session.exercises.length, 0)
   }
@@ -361,15 +163,15 @@ export default function Home() {
     firstWeekStart.setHours(0, 0, 0, 0)
     
     // Get current week's Monday
-    const currentWeekStart = new Date(now)
-    const currentDayOfWeek = currentWeekStart.getDay()
+    const currentWeekStartCalc = new Date(now)
+    const currentDayOfWeek = currentWeekStartCalc.getDay()
     const currentDiff = currentDayOfWeek === 0 ? -6 : 1 - currentDayOfWeek
-    currentWeekStart.setDate(currentWeekStart.getDate() + currentDiff)
-    currentWeekStart.setHours(0, 0, 0, 0)
+    currentWeekStartCalc.setDate(currentWeekStartCalc.getDate() + currentDiff)
+    currentWeekStartCalc.setHours(0, 0, 0, 0)
     
     // Generate all weeks from first workout to current week
     let weekStart = new Date(firstWeekStart)
-    while (weekStart <= currentWeekStart) {
+    while (weekStart <= currentWeekStartCalc) {
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 6)
       weekEnd.setHours(23, 59, 59, 999)
@@ -380,7 +182,7 @@ export default function Home() {
         return dayDate >= weekStart && dayDate <= weekEnd && dayDate <= now
       }).length
       
-      const isCurrentWeek = weekStart.getTime() === currentWeekStart.getTime()
+      const isCurrentWeek = weekStart.getTime() === currentWeekStartCalc.getTime()
       
       weeks.push({
         weekLabel: weekStart.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
@@ -455,11 +257,9 @@ export default function Home() {
       const result = importAllData(data, { replace: true })
       
       if (result.success) {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) setDays(JSON.parse(stored))
+        // Refresh data from localStorage after import
+        refreshData()
         setTargetSessions(getTargetSessionsPerWeek())
-        setSelectedSession(null)
-        setSelectedDay(null)
         
         const daysCount = Array.isArray(data.days) ? data.days.length : 0
         const exercisesCount = Array.isArray(data.exercises) ? data.exercises.length : 0
@@ -493,11 +293,10 @@ export default function Home() {
     localStorage.removeItem("workout-session-templates")
     localStorage.removeItem("workout-target-sessions-per-week")
     
-    // Reset state
+    // Reset state using the hook
     setDays([])
     setTargetSessions(3)
-    setSelectedSession(null)
-    setSelectedDay(null)
+    closeWorkout()
     setShowSettingsDialog(false)
     setShowClearDataDialog(false)
     
@@ -508,7 +307,7 @@ export default function Home() {
   }
 
   // Check if current week is being viewed
-  const isCurrentWeek = () => {
+  const isCurrentWeekView = () => {
     const today = new Date()
     const todayWeekStart = new Date(today)
     const day = today.getDay()
@@ -525,10 +324,7 @@ export default function Home() {
         key={`${selectedSession.id}-${selectedSession.exercises.length}`}
         session={selectedSession}
         workoutDate={selectedDay.date}
-        onBack={() => {
-          setSelectedSession(null)
-          setSelectedDay(null)
-        }}
+        onBack={closeWorkout}
         onUpdate={updateSession}
         onDelete={deleteSession}
         allDays={days}
@@ -793,7 +589,7 @@ export default function Home() {
                 <TooltipContent>Previous Week</TooltipContent>
               </Tooltip>
               <Button
-                variant={isCurrentWeek() ? "default" : "outline"}
+                variant={isCurrentWeekView() ? "default" : "outline"}
                 size="sm"
                 className="h-10 px-6 font-semibold rounded-full"
                 onClick={goToCurrentWeek}
@@ -954,7 +750,7 @@ export default function Home() {
             open={showManageExercises}
             onOpenChange={setShowManageExercises}
             allDays={days}
-            onDaysUpdate={saveDays}
+            onDaysUpdate={setDays}
           />
         </div>
       </main>

@@ -1,6 +1,6 @@
 // Service Worker for PBTrackPro
 // Version is used to force cache invalidation on updates
-const CACHE_VERSION = 'v1.0.0';
+const CACHE_VERSION = 'v1.1.0';
 const CACHE_NAME = `pbtrackpro-${CACHE_VERSION}`;
 
 // Assets to cache on install

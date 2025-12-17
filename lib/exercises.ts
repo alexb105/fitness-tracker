@@ -174,7 +174,7 @@ export function getBestPBForExercise(
   })
 }
 
-export function renameExercise(oldName: string, newName: string, allDays: WorkoutDay[]): { success: boolean; message: string } {
+export function renameExercise(oldName: string, newName: string, _allDays?: WorkoutDay[]): { success: boolean; message: string } {
   if (typeof window === "undefined") {
     return { success: false, message: "Cannot rename in server environment" }
   }
@@ -211,8 +211,19 @@ export function renameExercise(oldName: string, newName: string, allDays: Workou
       }
     }
 
+    // Read fresh workout days from localStorage (not from passed parameter which could be stale)
+    const daysStored = localStorage.getItem("workout-days")
+    let currentDays: WorkoutDay[] = []
+    if (daysStored) {
+      try {
+        currentDays = JSON.parse(daysStored)
+      } catch (e) {
+        console.error("Error parsing workout days:", e)
+      }
+    }
+
     // Update all workout days and sessions
-    const updatedDays = allDays.map((day) => ({
+    const updatedDays = currentDays.map((day) => ({
       ...day,
       sessions: day.sessions.map((session) => ({
         ...session,
