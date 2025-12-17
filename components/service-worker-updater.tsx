@@ -1,12 +1,15 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { RefreshCw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export default function ServiceWorkerUpdater() {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false)
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null)
+  
+  // Track if user explicitly requested update (prevents auto-reload on visibility change)
+  const userRequestedUpdateRef = useRef(false)
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
@@ -21,13 +24,16 @@ export default function ServiceWorkerUpdater() {
 
         console.log("[App] Service Worker registered")
 
-        // Check for updates immediately
+        // Check for updates immediately (but don't force refresh)
         registration.update()
 
-        // Check for updates periodically (every 60 seconds)
+        // Check for updates periodically (every 5 minutes - less aggressive)
         const updateInterval = setInterval(() => {
-          registration.update()
-        }, 60 * 1000)
+          // Only check for updates when app is visible
+          if (document.visibilityState === "visible") {
+            registration.update()
+          }
+        }, 5 * 60 * 1000)
 
         // Handle updates found
         registration.addEventListener("updatefound", () => {
@@ -38,7 +44,7 @@ export default function ServiceWorkerUpdater() {
 
           newWorker.addEventListener("statechange", () => {
             if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-              // New version available
+              // New version available - show prompt but don't auto-update
               console.log("[App] New version available!")
               setWaitingWorker(newWorker)
               setShowUpdatePrompt(true)
@@ -53,9 +59,16 @@ export default function ServiceWorkerUpdater() {
         }
 
         // Listen for controller change (when new SW takes over)
+        // Only reload if user explicitly requested the update
         navigator.serviceWorker.addEventListener("controllerchange", () => {
-          // Reload the page to get the latest version
-          window.location.reload()
+          if (userRequestedUpdateRef.current) {
+            // User requested update - safe to reload
+            window.location.reload()
+          } else {
+            // Controller changed without user request - just log it
+            // This prevents unexpected reloads when returning from background
+            console.log("[App] Service worker controller changed")
+          }
         })
 
         // Listen for messages from service worker
@@ -77,6 +90,8 @@ export default function ServiceWorkerUpdater() {
 
   const handleUpdate = () => {
     if (waitingWorker) {
+      // Mark that user requested the update
+      userRequestedUpdateRef.current = true
       // Tell the waiting service worker to skip waiting and activate
       waitingWorker.postMessage({ type: "SKIP_WAITING" })
       setShowUpdatePrompt(false)
@@ -136,4 +151,5 @@ export default function ServiceWorkerUpdater() {
     </div>
   )
 }
+
 

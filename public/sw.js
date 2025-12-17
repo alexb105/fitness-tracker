@@ -1,6 +1,6 @@
 // Service Worker for PBTrackPro
 // Version is used to force cache invalidation on updates
-const CACHE_VERSION = 'v1.1.0';
+const CACHE_VERSION = 'v1.2.0';
 const CACHE_NAME = `pbtrackpro-${CACHE_VERSION}`;
 
 // Assets to cache on install
@@ -14,20 +14,21 @@ const STATIC_ASSETS = [
 ];
 
 // Install event - cache static assets
+// NOTE: We do NOT call skipWaiting() here - we wait for user to explicitly request update
+// This prevents data loss from unexpected reloads when returning from background
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing new version:', CACHE_VERSION);
   
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
-    }).then(() => {
-      // Force the waiting service worker to become active
-      return self.skipWaiting();
     })
+    // No skipWaiting() - let the app control when to activate
   );
 });
 
 // Activate event - clean up old caches
+// NOTE: We do NOT call clients.claim() - prevents unexpected takeover
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating new version:', CACHE_VERSION);
   
@@ -42,10 +43,7 @@ self.addEventListener('activate', (event) => {
           })
       );
     }).then(() => {
-      // Take control of all clients immediately
-      return self.clients.claim();
-    }).then(() => {
-      // Notify all clients about the update
+      // Notify all clients about the update (but don't take control)
       return self.clients.matchAll().then((clients) => {
         clients.forEach((client) => {
           client.postMessage({
@@ -119,4 +117,5 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   }
 });
+
 

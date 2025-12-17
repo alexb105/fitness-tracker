@@ -35,6 +35,9 @@ export function useWorkoutData(): UseWorkoutDataReturn {
   const selectedDayRef = useRef<WorkoutDay | null>(null)
   const selectedSessionRef = useRef<WorkoutSession | null>(null)
   
+  // Track if we've done initial load
+  const hasInitializedRef = useRef(false)
+  
   // Keep refs in sync with state
   useEffect(() => {
     selectedDayRef.current = selectedDay
@@ -44,15 +47,70 @@ export function useWorkoutData(): UseWorkoutDataReturn {
     selectedSessionRef.current = selectedSession
   }, [selectedSession])
   
-  // Load initial data from localStorage
-  useEffect(() => {
+  // Sync state with localStorage (used for initial load and when returning from background)
+  const syncFromStorage = useCallback(() => {
     const data = Storage.readDays()
     setDaysState(data)
+    
+    // Update selected day/session if they still exist
+    if (selectedDayRef.current) {
+      const updatedDay = data.find((d) => d.id === selectedDayRef.current!.id)
+      if (updatedDay) {
+        setSelectedDay(updatedDay)
+        if (selectedSessionRef.current) {
+          const updatedSession = updatedDay.sessions.find(
+            (s) => s.id === selectedSessionRef.current!.id
+          )
+          if (updatedSession) {
+            setSelectedSession(updatedSession)
+          }
+          // Don't clear session if not found - user might be in the middle of editing
+        }
+      }
+      // Don't clear day/session if not found - prevents data loss on background return
+    }
   }, [])
+  
+  // Load initial data from localStorage
+  useEffect(() => {
+    if (!hasInitializedRef.current) {
+      syncFromStorage()
+      hasInitializedRef.current = true
+    }
+  }, [syncFromStorage])
+  
+  // Handle visibility change - sync when app returns from background
+  // This prevents data loss when the app is minimized and restored on mobile
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        // App became visible again - sync state with localStorage
+        // This ensures we have the latest data without losing current state
+        syncFromStorage()
+      }
+    }
+    
+    // Also handle page show event for iOS Safari bfcache
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        // Page was restored from bfcache - resync
+        syncFromStorage()
+      }
+    }
+    
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    window.addEventListener("pageshow", handlePageShow)
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("pageshow", handlePageShow)
+    }
+  }, [syncFromStorage])
   
   /**
    * Refresh data from localStorage
    * Use this after external changes (import, etc.)
+   * This version clears selection if data no longer exists (for explicit refresh calls)
    */
   const refreshData = useCallback(() => {
     const data = Storage.readDays()
@@ -70,7 +128,7 @@ export function useWorkoutData(): UseWorkoutDataReturn {
           setSelectedSession(updatedSession || null)
         }
       } else {
-        // Day no longer exists
+        // Day no longer exists - clear selection (explicit refresh)
         setSelectedDay(null)
         setSelectedSession(null)
       }
@@ -174,3 +232,4 @@ export function useWorkoutData(): UseWorkoutDataReturn {
     setDays,
   }
 }
+

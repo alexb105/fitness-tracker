@@ -325,3 +325,4 @@ export function clearAllDays(): void {
   if (typeof window === "undefined") return
   localStorage.removeItem(STORAGE_KEY)
 }
+
