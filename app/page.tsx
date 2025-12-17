@@ -118,7 +118,7 @@ export default function Home() {
         console.error("Error parsing stored days:", e)
       }
     }
-    
+
     const dateStr = date.toISOString().split("T")[0]
     let day = currentDays.find((d) => d.date.split("T")[0] === dateStr)
     let needsSave = false
@@ -204,30 +204,59 @@ export default function Home() {
   }
 
   const updateSession = (updatedSession: WorkoutSession) => {
-    setDays((currentDays) => {
-      const dayWithSession = currentDays.find((d) => 
-        d.sessions.some((s) => s.id === updatedSession.id)
-      )
-      
-      if (!dayWithSession) {
-        console.warn("Could not find day for session:", updatedSession.id)
-        return currentDays
+    // Read fresh from localStorage to avoid stale state issues
+    const stored = localStorage.getItem(STORAGE_KEY)
+    let currentDays: WorkoutDay[] = []
+    if (stored) {
+      try {
+        currentDays = JSON.parse(stored)
+      } catch (e) {
+        console.error("Error parsing stored days:", e)
       }
+    }
 
-      const updatedDay = {
-        ...dayWithSession,
-        sessions: dayWithSession.sessions.map((s) => 
-          s.id === updatedSession.id ? updatedSession : s
-        ),
+    let dayWithSession = currentDays.find((d) => 
+      d.sessions.some((s) => s.id === updatedSession.id)
+    )
+
+    // If day not found in localStorage, use selectedDay as fallback
+    // This handles the case where state update hasn't synced to localStorage yet
+    if (!dayWithSession && selectedDay) {
+      const sessionInSelectedDay = selectedDay.sessions.find((s) => s.id === updatedSession.id)
+      if (sessionInSelectedDay) {
+        // Add selectedDay to currentDays if it doesn't exist
+        const existingDayIndex = currentDays.findIndex((d) => d.id === selectedDay.id)
+        if (existingDayIndex >= 0) {
+          dayWithSession = currentDays[existingDayIndex]
+        } else {
+          // Day doesn't exist in localStorage, add it
+          currentDays = [...currentDays, selectedDay].sort((a, b) => 
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
+          dayWithSession = selectedDay
+        }
       }
+    }
 
-      const newDays = currentDays.map((d) => 
-        d.id === updatedDay.id ? updatedDay : d
-      )
+    if (!dayWithSession) {
+      console.warn("Could not find day for session:", updatedSession.id)
+      return
+    }
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
-      return newDays
-    })
+    const updatedDay = {
+      ...dayWithSession,
+      sessions: dayWithSession.sessions.map((s) => 
+        s.id === updatedSession.id ? updatedSession : s
+      ),
+    }
+
+    const newDays = currentDays.map((d) => 
+      d.id === updatedDay.id ? updatedDay : d
+    )
+
+    // Save to localStorage and update state
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
+    setDays(newDays)
 
     setSelectedSession((current) => 
       current?.id === updatedSession.id ? updatedSession : current
@@ -250,37 +279,61 @@ export default function Home() {
   }
 
   const deleteSession = (sessionId: string) => {
-    setDays((currentDays) => {
-      const dayWithSession = currentDays.find((d) => 
-        d.sessions.some((s) => s.id === sessionId)
-      )
-      
-      if (!dayWithSession) {
-        return currentDays
+    // Read fresh from localStorage to avoid stale state issues
+    const stored = localStorage.getItem(STORAGE_KEY)
+    let currentDays: WorkoutDay[] = []
+    if (stored) {
+      try {
+        currentDays = JSON.parse(stored)
+      } catch (e) {
+        console.error("Error parsing stored days:", e)
       }
+    }
 
-      const remainingSessions = dayWithSession.sessions.filter((s) => s.id !== sessionId)
-      
-      // If no sessions left, remove the day entirely
-      if (remainingSessions.length === 0) {
-        const newDays = currentDays.filter((d) => d.id !== dayWithSession.id)
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
-        return newDays
+    let dayWithSession = currentDays.find((d) => 
+      d.sessions.some((s) => s.id === sessionId)
+    )
+
+    // If day not found in localStorage, use selectedDay as fallback
+    if (!dayWithSession && selectedDay) {
+      const sessionInSelectedDay = selectedDay.sessions.find((s) => s.id === sessionId)
+      if (sessionInSelectedDay) {
+        const existingDayIndex = currentDays.findIndex((d) => d.id === selectedDay.id)
+        if (existingDayIndex >= 0) {
+          dayWithSession = currentDays[existingDayIndex]
+        } else {
+          currentDays = [...currentDays, selectedDay].sort((a, b) => 
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+          )
+          dayWithSession = selectedDay
+        }
       }
+    }
 
+    if (!dayWithSession) {
+      return
+    }
+
+    const remainingSessions = dayWithSession.sessions.filter((s) => s.id !== sessionId)
+
+    let newDays: WorkoutDay[]
+    
+    // If no sessions left, remove the day entirely
+    if (remainingSessions.length === 0) {
+      newDays = currentDays.filter((d) => d.id !== dayWithSession!.id)
+    } else {
       // Otherwise, update the day with remaining sessions
       const updatedDay = {
         ...dayWithSession,
         sessions: remainingSessions,
       }
-
-      const newDays = currentDays.map((d) => 
+      newDays = currentDays.map((d) => 
         d.id === updatedDay.id ? updatedDay : d
       )
+    }
 
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
-      return newDays
-    })
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newDays))
+    setDays(newDays)
   }
 
   const getTotalExercises = (day: WorkoutDay) => {
